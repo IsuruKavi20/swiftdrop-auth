@@ -12,6 +12,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -37,8 +40,32 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.ACTIVE;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    @Column(name = "failed_login_count", nullable = false)
+    private int failedLoginCount;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
+    // Timestamps come from the application clock (all writes go through JPA). The DB defaults
+    // are only a safety net for raw SQL inserts; raw SQL updates do not refresh updated_at.
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    // Optimistic locking: UPDATE ... WHERE version = ?; a stale copy fails instead of overwriting
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -60,6 +87,10 @@ public class User {
         roles.add(role);
     }
 
+    public void markEmailVerified() {
+        this.emailVerified = true;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -76,8 +107,32 @@ public class User {
         return status;
     }
 
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public int getFailedLoginCount() {
+        return failedLoginCount;
+    }
+
+    public Instant getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public Instant getLastLoginAt() {
+        return lastLoginAt;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     public Set<Role> getRoles() {
