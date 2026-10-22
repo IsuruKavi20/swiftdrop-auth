@@ -1,0 +1,22 @@
+# Local development database for the auth service.
+# Start: docker compose up -d    Stop: docker compose down
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: swiftdrop-auth-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - auth-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  auth-pgdata:
