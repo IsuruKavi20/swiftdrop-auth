@@ -1,17 +1,20 @@
 package com.swiftdrop.auth.signup;
 
+import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.Role;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Locale;
-
 @Service
 public class SignupService {
+
+    private static final String UNIQUE_EMAIL_CONSTRAINT = "uk_users_email";
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -26,18 +29,35 @@ public class SignupService {
     }
 
     @Transactional
-    public User signUp(String email, String rawPassword) {
-        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+    public User signUp(String rawEmail, String rawPassword) {
+        EmailAddress email = EmailAddress.of(rawEmail);
 
-        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
+        if (userRepository.existsByEmail(email.value())) {
             throw new EmailAlreadyUsedException();
         }
 
         Role customer = roleRepository.findByName(Role.CUSTOMER)
                 .orElseThrow(() -> new IllegalStateException("Role missing from database: " + Role.CUSTOMER));
 
-        User user = new User(normalizedEmail, passwordEncoder.encode(rawPassword));
+        User user = new User(email, passwordEncoder.encode(rawPassword));
         user.addRole(customer);
-        return userRepository.save(user);
+        return saveRejectingDuplicateEmail(user);
+    }
+
+    // The existsByEmail check can race with a concurrent signup; the unique constraint is the real guard.
+    private User saveRejectingDuplicateEmail(User user) {
+        try {
+            return userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            if (isUniqueEmailViolation(e)) {
+                throw new EmailAlreadyUsedException();
+            }
+            throw e;
+        }
+    }
+
+    private static boolean isUniqueEmailViolation(DataIntegrityViolationException e) {
+        return e.getCause() instanceof ConstraintViolationException violation
+                && UNIQUE_EMAIL_CONSTRAINT.equalsIgnoreCase(violation.getConstraintName());
     }
 }

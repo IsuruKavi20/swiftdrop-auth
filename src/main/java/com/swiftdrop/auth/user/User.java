@@ -51,8 +51,8 @@ public class User {
         // required by JPA
     }
 
-    public User(String email, String passwordHash) {
-        this.email = email;
+    public User(EmailAddress email, String passwordHash) {
+        this.email = email.value();
         this.passwordHash = passwordHash;
     }
 
