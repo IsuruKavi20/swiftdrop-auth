@@ -5,8 +5,8 @@ spring:
     import: optional:file:.env[.properties]
   datasource:
     url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    username: ${DB_APP_USER}
+    password: ${DB_APP_PASSWORD}
   jpa:
     open-in-view: false
     hibernate:
@@ -15,8 +15,11 @@ spring:
       hibernate:
         default_schema: identity
   flyway:
+    user: ${DB_MIGRATOR_USER}
+    password: ${DB_MIGRATOR_PASSWORD}
     schemas: identity
-    create-schemas: true
+    default-schema: identity
+    create-schemas: false
 
 management:
   endpoints:
