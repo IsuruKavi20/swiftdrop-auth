@@ -10,7 +10,7 @@ class PasswordEncoderTest {
 
     private static final PasswordHashingProperties SETTINGS = new PasswordHashingProperties(16, 32, 2, 65_536, 2);
 
-    private final PasswordEncoder encoder = new SecurityConfig().passwordEncoder(SETTINGS);
+    private final PasswordEncoder encoder = new PasswordEncoderConfig().passwordEncoder(SETTINGS);
 
     @Test
     void hashIsTaggedWithAlgorithmIdAndUsesArgon2id() {

@@ -1,8 +1,11 @@
 package com.swiftdrop.auth.signup;
 
-public class EmailAlreadyUsedException extends RuntimeException {
+import com.swiftdrop.auth.common.error.DomainException;
+import com.swiftdrop.auth.common.error.ErrorCode;
+
+public class EmailAlreadyUsedException extends DomainException {
 
     public EmailAlreadyUsedException() {
-        super("Email is already registered");
+        super(ErrorCode.EMAIL_ALREADY_USED);
     }
 }

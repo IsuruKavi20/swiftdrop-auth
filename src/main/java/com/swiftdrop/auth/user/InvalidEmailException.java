@@ -1,9 +1,12 @@
 package com.swiftdrop.auth.user;
 
-public class InvalidEmailException extends RuntimeException {
+import com.swiftdrop.auth.common.error.DomainException;
+import com.swiftdrop.auth.common.error.ErrorCode;
 
+public class InvalidEmailException extends DomainException {
+
+    // The message is the error code's fixed title: never the address itself (personal data)
     public InvalidEmailException() {
-        // Never include the address itself: it is personal data and must not reach logs
-        super("Email address is not valid");
+        super(ErrorCode.INVALID_EMAIL);
     }
 }
