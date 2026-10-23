@@ -1,0 +1,8 @@
+# Automated tests: database settings come from Testcontainers (TestcontainersConfiguration).
+# Cheaper Argon2 settings keep tests fast; still within the validated minimums.
+swiftdrop:
+  security:
+    password:
+      parallelism: 1
+      memory-kb: 19456
+      iterations: 2

@@ -6,23 +6,25 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
+import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+
+import java.util.Map;
 
 @Configuration
 public class SecurityConfig {
 
-    // Argon2id parameters from the security plan (section 7). Re-tune to ~250 ms per hash.
-    private static final int SALT_LENGTH_BYTES = 16;
-    private static final int HASH_LENGTH_BYTES = 32;
-    private static final int PARALLELISM = 2;
-    private static final int MEMORY_KB = 65_536;
-    private static final int ITERATIONS = 2;
+    // Stored hashes look like "{argon2}$argon2id$...": the id lets us change algorithm later
+    // while still verifying old hashes.
+    private static final String CURRENT_ENCODER_ID = "argon2";
 
     @Bean
-    PasswordEncoder passwordEncoder() {
-        return new Argon2PasswordEncoder(
-                SALT_LENGTH_BYTES, HASH_LENGTH_BYTES, PARALLELISM, MEMORY_KB, ITERATIONS);
+    PasswordEncoder passwordEncoder(PasswordHashingProperties settings) {
+        PasswordEncoder argon2 = new Argon2PasswordEncoder(
+                settings.saltLengthBytes(), settings.hashLengthBytes(), settings.parallelism(),
+                settings.memoryKb(), settings.iterations());
+        return new DelegatingPasswordEncoder(CURRENT_ENCODER_ID, Map.of(CURRENT_ENCODER_ID, argon2));
     }
 
     @Bean
@@ -33,7 +35,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/signup").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }

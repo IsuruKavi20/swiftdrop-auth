@@ -1,0 +1,27 @@
+# Production: every secret comes from real environment variables / a secret store (no .env).
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+      max-lifetime: 1800000   # 30 min: recycle connections before DB/proxy idle timeouts cut them
+
+server:
+  shutdown: graceful
+  error:
+    whitelabel:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      show-components: never
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    org.springframework.security: WARN

@@ -131,6 +131,12 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<!-- ./mvnw spring-boot:run is for local development only -->
+					<profiles>
+						<profile>dev</profile>
+					</profiles>
+				</configuration>
 			</plugin>
 			<!-- Integration tests (*IT.java) run in `mvn verify`, after unit tests -->
 			<plugin>

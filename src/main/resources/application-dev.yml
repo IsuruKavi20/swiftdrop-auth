@@ -1,0 +1,4 @@
+# Your laptop: secrets come from the git-ignored .env file.
+spring:
+  config:
+    import: optional:file:.env[.properties]
