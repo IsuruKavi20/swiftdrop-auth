@@ -2,6 +2,7 @@ package com.swiftdrop.auth.signup;
 
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.Role;
+import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
@@ -29,19 +30,19 @@ public class SignupService {
     }
 
     @Transactional
-    public User signUp(String rawEmail, String rawPassword) {
+    public SignupResult signUp(String rawEmail, String rawPassword) {
         EmailAddress email = EmailAddress.of(rawEmail);
 
         if (userRepository.existsByEmail(email.value())) {
             throw new EmailAlreadyUsedException();
         }
 
-        Role customer = roleRepository.findByName(Role.CUSTOMER)
-                .orElseThrow(() -> new IllegalStateException("Role missing from database: " + Role.CUSTOMER));
+        Role customer = roleRepository.findByName(RoleName.CUSTOMER)
+                .orElseThrow(() -> new IllegalStateException("Role missing from database: " + RoleName.CUSTOMER));
 
         User user = new User(email, passwordEncoder.encode(rawPassword));
         user.addRole(customer);
-        return saveRejectingDuplicateEmail(user);
+        return new SignupResult(saveRejectingDuplicateEmail(user).getId());
     }
 
     // The existsByEmail check can race with a concurrent signup; the unique constraint is the real guard.

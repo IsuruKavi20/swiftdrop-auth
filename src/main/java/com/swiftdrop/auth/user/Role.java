@@ -2,6 +2,8 @@ package com.swiftdrop.auth.user;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -9,13 +11,12 @@ import jakarta.persistence.Table;
 @Table(name = "roles")
 public class Role {
 
-    public static final String CUSTOMER = "CUSTOMER";
-
     @Id
     private Short id;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, unique = true, length = 30)
-    private String name;
+    private RoleName name;
 
     protected Role() {
         // required by JPA
@@ -25,7 +26,7 @@ public class Role {
         return id;
     }
 
-    public String getName() {
+    public RoleName getName() {
         return name;
     }
 }

@@ -2,6 +2,7 @@ package com.swiftdrop.auth.signup;
 
 import com.swiftdrop.auth.user.InvalidEmailException;
 import com.swiftdrop.auth.user.Role;
+import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
@@ -10,6 +11,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -51,14 +53,16 @@ class SignupServiceTest {
         // Arrange
         Role customer = mock(Role.class);
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(Role.CUSTOMER)).thenReturn(Optional.of(customer));
+        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(customer));
         when(passwordEncoder.encode("a long passphrase")).thenReturn("$argon2id$hashed");
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
         // Act
-        User user = signupService.signUp("isuru@x.com", "a long passphrase");
+        SignupResult result = signupService.signUp("isuru@x.com", "a long passphrase");
 
-        // Assert
+        // Assert: catch the User passed to saveAndFlush and inspect it
+        User user = savedUser();
+        assertThat(result).isNotNull();
         assertThat(user.getEmail()).isEqualTo("isuru@x.com");
         assertThat(user.getPasswordHash()).isEqualTo("$argon2id$hashed");
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
@@ -79,13 +83,13 @@ class SignupServiceTest {
     @Test
     void storesEmailNormalised() {
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(Role.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
+        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
         when(passwordEncoder.encode(anyString())).thenReturn("$argon2id$hashed");
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
-        User user = signupService.signUp("  Ｉsuru@X.com ", "a long passphrase");
+        signupService.signUp("  Ｉsuru@X.com ", "a long passphrase");
 
-        assertThat(user.getEmail()).isEqualTo("isuru@x.com");
+        assertThat(savedUser().getEmail()).isEqualTo("isuru@x.com");
     }
 
     @Test
@@ -100,7 +104,7 @@ class SignupServiceTest {
     void duplicateDetectedByDatabaseUniqueConstraintBecomesEmailAlreadyUsed() {
         // Race: both requests passed existsByEmail, the database rejects the second INSERT
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(Role.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
+        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
         when(passwordEncoder.encode(anyString())).thenReturn("$argon2id$hashed");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(uniqueViolation("uk_users_email"));
 
@@ -111,7 +115,7 @@ class SignupServiceTest {
     @Test
     void otherDatabaseConstraintErrorsAreNotHidden() {
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(Role.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
+        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
         when(passwordEncoder.encode(anyString())).thenReturn("$argon2id$hashed");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(uniqueViolation("some_other_constraint"));
 
@@ -122,11 +126,17 @@ class SignupServiceTest {
     @Test
     void failsClearlyWhenCustomerRoleIsMissing() {
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(Role.CUSTOMER)).thenReturn(Optional.empty());
+        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> signupService.signUp("isuru@x.com", "a long passphrase"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(Role.CUSTOMER);
+                .hasMessageContaining(RoleName.CUSTOMER.name());
+    }
+
+    private User savedUser() {
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(captor.capture());
+        return captor.getValue();
     }
 
     private static DataIntegrityViolationException uniqueViolation(String constraintName) {
