@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.security;
 
 import jakarta.servlet.DispatcherType;
+import com.swiftdrop.auth.common.web.ApiPaths;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,7 +27,7 @@ public class SecurityConfig {
                         // Error dispatches render our Problem Details error page, never protected content
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/signup").permitAll()
+                        .requestMatchers(HttpMethod.POST, ApiPaths.AUTH + "/signup").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();

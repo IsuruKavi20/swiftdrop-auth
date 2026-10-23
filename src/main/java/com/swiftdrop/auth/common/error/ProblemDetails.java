@@ -25,7 +25,7 @@ public final class ProblemDetails {
             requestId = UUID.randomUUID().toString();
         }
         // The instance identifies this occurrence. It is NOT the request path, which would echo attacker input.
-        problem.setInstance(URI.create("urn:uuid:" + requestId));
+        problem.setInstance(URI.create("urn:swiftdrop:request:" + requestId));
         problem.setProperty(REQUEST_ID_KEY, requestId);
         return problem;
     }

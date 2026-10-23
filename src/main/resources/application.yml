@@ -8,6 +8,19 @@ spring:
   autoconfigure:
     # We never want Spring's auto-generated in-memory "user" account
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  servlet:
+    multipart:
+      # We never accept file uploads: no multipart parsing at all (it would bypass our 16 KB limit)
+      enabled: false
+  jackson:
+    # Strict JSON: the request DTO is the allow-list of accepted fields (stops mass assignment).
+    # Set explicitly: never rely on framework defaults for security behaviour.
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-trailing-tokens: true
+      fail-on-null-for-primitives: true
+    read:
+      strict-duplicate-detection: true
   datasource:
     url: ${DB_URL}
     username: ${DB_APP_USER}
@@ -29,12 +42,20 @@ spring:
     clean-disabled: true
 
 server:
+  tomcat:
+    # Form posts are parsed by Tomcat, not by our size-limit filter: cap them the same way
+    max-http-form-post-size: 16KB
   error:
     # Never leak internals in error responses
     include-stacktrace: never
     include-message: never
     include-exception: false
     include-binding-errors: never
+
+logging:
+  pattern:
+    # Every console log line carries the request ID (set by RequestIdFilter)
+    correlation: "[%X{requestId:-}] "
 
 management:
   endpoints:
@@ -56,3 +77,7 @@ swiftdrop:
       parallelism: 2
       memory-kb: 65536
       iterations: 2
+    password-work:
+      # At most 8 breach checks + hashes at once: worst case 8 x 64 MB = 512 MB. Busy -> 503 + Retry-After
+      max-concurrent: 8
+      max-wait: 200ms

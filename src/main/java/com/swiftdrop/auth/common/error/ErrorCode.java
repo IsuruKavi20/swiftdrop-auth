@@ -14,6 +14,8 @@ public enum ErrorCode {
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "Request validation failed", "One or more fields are invalid."),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request", "The request could not be read."),
     INVALID_EMAIL(HttpStatus.BAD_REQUEST, "Invalid email address", "The email address is not valid."),
+    WEAK_PASSWORD(HttpStatus.BAD_REQUEST, "Password not accepted",
+            "The password does not meet the password rules. See errors for the reason."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Authentication required",
             "Valid credentials are required to access this resource."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "Access denied", "You do not have permission to perform this action."),
@@ -21,12 +23,13 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed",
             "This HTTP method is not supported for this resource."),
     NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "Not acceptable", "The requested response format is not supported."),
-    EMAIL_ALREADY_USED(HttpStatus.CONFLICT, "Email already registered", "An account with this email already exists."),
     CONFLICT(HttpStatus.CONFLICT, "Conflict", "The resource was changed by someone else. Reload and try again."),
     PAYLOAD_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "Request too large", "The request body is too large."),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type",
             "Send the request body as application/json."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests", "Too many requests. Try again later."),
+    SERVICE_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "Service busy",
+            "Too many requests are being processed right now. Try again shortly."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error",
             "Something went wrong. Quote the requestId if you contact support.");
 

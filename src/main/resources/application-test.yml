@@ -2,6 +2,9 @@
 # Cheaper Argon2 settings keep tests fast; still within the validated minimums.
 swiftdrop:
   security:
+    # Tests never call the real Have I Been Pwned service
+    breached-password-check:
+      enabled: false
     password:
       parallelism: 1
       memory-kb: 19456

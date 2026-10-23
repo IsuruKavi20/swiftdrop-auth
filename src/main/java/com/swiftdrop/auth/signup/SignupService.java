@@ -1,64 +1,44 @@
 package com.swiftdrop.auth.signup;
 
+import com.swiftdrop.auth.common.concurrency.Bulkhead;
 import com.swiftdrop.auth.user.EmailAddress;
-import com.swiftdrop.auth.user.Role;
-import com.swiftdrop.auth.user.RoleName;
-import com.swiftdrop.auth.user.RoleRepository;
-import com.swiftdrop.auth.user.User;
-import com.swiftdrop.auth.user.UserRepository;
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * The signup use case. Built so a caller cannot tell whether an email was already registered:
+ * the same checks run and the password is always hashed, whatever the outcome.
+ */
 @Service
 public class SignupService {
 
-    private static final String UNIQUE_EMAIL_CONSTRAINT = "uk_users_email";
-
-    private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
+    private final PasswordPolicy passwordPolicy;
     private final PasswordEncoder passwordEncoder;
+    private final UserRegistrar registrar;
+    private final Bulkhead passwordWork;
 
-    public SignupService(UserRepository userRepository,
-                         RoleRepository roleRepository,
-                         PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
+    SignupService(PasswordPolicy passwordPolicy, PasswordEncoder passwordEncoder, UserRegistrar registrar,
+                  Bulkhead passwordWork) {
+        this.passwordPolicy = passwordPolicy;
         this.passwordEncoder = passwordEncoder;
+        this.registrar = registrar;
+        this.passwordWork = passwordWork;
     }
 
-    @Transactional
-    public SignupResult signUp(String rawEmail, String rawPassword) {
+    public SignupOutcome signUp(String rawEmail, String rawPassword) {
         EmailAddress email = EmailAddress.of(rawEmail);
-
-        if (userRepository.existsByEmail(email.value())) {
-            throw new EmailAlreadyUsedException();
-        }
-
-        Role customer = roleRepository.findByName(RoleName.CUSTOMER)
-                .orElseThrow(() -> new IllegalStateException("Role missing from database: " + RoleName.CUSTOMER));
-
-        User user = new User(email, passwordEncoder.encode(rawPassword));
-        user.addRole(customer);
-        return new SignupResult(saveRejectingDuplicateEmail(user).getId());
-    }
-
-    // The existsByEmail check can race with a concurrent signup; the unique constraint is the real guard.
-    private User saveRejectingDuplicateEmail(User user) {
+        // Breach check + Argon2 are the expensive part (network + 64 MB): only a few may run at once
+        String passwordHash = passwordWork.call(() -> {
+            // Password rules before looking at the account: a weak password is rejected the same way for everyone
+            String password = passwordPolicy.validate(rawPassword, email);
+            // Always hash, even if the email turns out to exist, so response time doesn't reveal it
+            return passwordEncoder.encode(password);
+        });
         try {
-            return userRepository.saveAndFlush(user);
-        } catch (DataIntegrityViolationException e) {
-            if (isUniqueEmailViolation(e)) {
-                throw new EmailAlreadyUsedException();
-            }
-            throw e;
+            registrar.registerCustomer(email, passwordHash);
+            return SignupOutcome.ACCOUNT_CREATED;
+        } catch (DuplicateEmailException alreadyRegistered) {
+            return SignupOutcome.EMAIL_ALREADY_REGISTERED;
         }
-    }
-
-    private static boolean isUniqueEmailViolation(DataIntegrityViolationException e) {
-        return e.getCause() instanceof ConstraintViolationException violation
-                && UNIQUE_EMAIL_CONSTRAINT.equalsIgnoreCase(violation.getConstraintName());
     }
 }

@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.common.error;
 
+import com.swiftdrop.auth.common.web.PayloadTooLargeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.NestedExceptionUtils;
@@ -30,11 +31,21 @@ import java.util.List;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String RETRY_AFTER_SECONDS = "1";
     private static final String BRACKET_CONTENT = "\\[[^\\]]*\\]";
 
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> handleDomain(DomainException ex) {
-        return respond(ex.errorCode());
+        ProblemDetail body = ProblemDetails.of(ex.errorCode());
+        if (!ex.violations().isEmpty()) {
+            body.setProperty("errors", ex.violations());
+        }
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.errorCode().status());
+        // Overload / rate limits tell well-behaved clients when to come back (RFC 9110 Retry-After)
+        if (ex.errorCode().status().value() == 503 || ex.errorCode().status().value() == 429) {
+            response.header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS);
+        }
+        return response.body(body);
     }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
@@ -82,6 +93,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        // The size-limit filter aborts oversized bodies while the JSON parser is reading them
+        if (NestedExceptionUtils.getMostSpecificCause(ex) instanceof PayloadTooLargeException tooLarge) {
+            return handleExceptionInternal(ex, ProblemDetails.of(tooLarge.errorCode()), headers,
+                    tooLarge.errorCode().status(), request);
+        }
         return handleExceptionInternal(ex, ProblemDetails.of(ErrorCode.MALFORMED_REQUEST), headers, status, request);
     }
 

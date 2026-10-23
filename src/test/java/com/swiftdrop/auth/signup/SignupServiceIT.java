@@ -56,8 +56,30 @@ class SignupServiceIT {
         String id = uniqueId();
         signupService.signUp("case-" + id + "@example.com", "a long passphrase here");
 
-        assertThatThrownBy(() -> signupService.signUp("CASE-" + id + "@Example.COM", "a long passphrase here"))
-                .isInstanceOf(EmailAlreadyUsedException.class);
+        assertThat(signupService.signUp("CASE-" + id + "@Example.COM", "a long passphrase here"))
+                .isEqualTo(SignupOutcome.EMAIL_ALREADY_REGISTERED);
+    }
+
+    @Test
+    void weakPasswordIsRejectedIdenticallyForNewAndExistingEmails() {
+        String existing = "exists-" + uniqueId() + "@example.com";
+        signupService.signUp(existing, "a long passphrase here");
+
+        for (String weak : new String[] {"short", "swiftdrop swiftdrop"}) {
+            WeakPasswordException forExisting = catchWeak(existing, weak);
+            WeakPasswordException forNew = catchWeak("new-" + uniqueId() + "@example.com", weak);
+            assertThat(forExisting.reason()).isEqualTo(forNew.reason());
+            assertThat(forExisting.violations()).isEqualTo(forNew.violations());
+        }
+    }
+
+    private WeakPasswordException catchWeak(String email, String password) {
+        try {
+            signupService.signUp(email, password);
+        } catch (WeakPasswordException e) {
+            return e;
+        }
+        throw new AssertionError("expected the password to be rejected");
     }
 
     @Test
@@ -77,12 +99,7 @@ class SignupServiceIT {
             for (int i = 0; i < CONCURRENT_SIGNUPS; i++) {
                 results.add(pool.submit(() -> {
                     startTogether.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    try {
-                        signupService.signUp(email, "a long passphrase here");
-                        return true;
-                    } catch (EmailAlreadyUsedException duplicate) {
-                        return false;
-                    }
+                    return signupService.signUp(email, "a long passphrase here") == SignupOutcome.ACCOUNT_CREATED;
                 }));
             }
             startTogether.countDown();

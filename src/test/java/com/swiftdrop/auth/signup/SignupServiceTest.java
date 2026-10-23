@@ -1,30 +1,24 @@
 package com.swiftdrop.auth.signup;
 
+import com.swiftdrop.auth.common.concurrency.Bulkhead;
+import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.InvalidEmailException;
-import com.swiftdrop.auth.user.Role;
-import com.swiftdrop.auth.user.RoleName;
-import com.swiftdrop.auth.user.RoleRepository;
-import com.swiftdrop.auth.user.User;
-import com.swiftdrop.auth.user.UserRepository;
-import com.swiftdrop.auth.user.UserStatus;
-import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.password.CompromisedPasswordDecision;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.sql.SQLException;
-import java.util.Optional;
+import java.text.Normalizer;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,11 +26,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SignupServiceTest {
 
-    @Mock
-    private UserRepository userRepository;
+    private static final String PASSWORD = "a long passphrase here";
 
     @Mock
-    private RoleRepository roleRepository;
+    private UserRegistrar registrar;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -45,103 +38,55 @@ class SignupServiceTest {
 
     @BeforeEach
     void setUp() {
-        signupService = new SignupService(userRepository, roleRepository, passwordEncoder);
+        PasswordPolicy policy = new PasswordPolicy(password -> new CompromisedPasswordDecision(false));
+        signupService = new SignupService(policy, passwordEncoder, registrar, new Bulkhead(2, Duration.ZERO));
     }
 
     @Test
-    void createsCustomerWithHashedPassword() {
-        // Arrange
-        Role customer = mock(Role.class);
-        when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(customer));
-        when(passwordEncoder.encode("a long passphrase")).thenReturn("$argon2id$hashed");
-        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
+    void newEmailCreatesAccountWithHashedPassword() {
+        when(passwordEncoder.encode(PASSWORD)).thenReturn("{argon2}hash");
 
-        // Act
-        SignupResult result = signupService.signUp("isuru@x.com", "a long passphrase");
+        SignupOutcome outcome = signupService.signUp("  Isuru@X.com ", PASSWORD);
 
-        // Assert: catch the User passed to saveAndFlush and inspect it
-        User user = savedUser();
-        assertThat(result).isNotNull();
-        assertThat(user.getEmail()).isEqualTo("isuru@x.com");
-        assertThat(user.getPasswordHash()).isEqualTo("$argon2id$hashed");
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.getRoles()).containsExactly(customer);
+        assertThat(outcome).isEqualTo(SignupOutcome.ACCOUNT_CREATED);
+        verify(registrar).registerCustomer(EmailAddress.of("isuru@x.com"), "{argon2}hash");
     }
 
     @Test
-    void rejectsDuplicateEmailWithoutHashingOrSaving() {
-        when(userRepository.existsByEmail("isuru@x.com")).thenReturn(true);
+    void existingEmailStillHashesThePasswordSoTimingMatches() {
+        when(passwordEncoder.encode(PASSWORD)).thenReturn("{argon2}hash");
+        doThrow(new DuplicateEmailException()).when(registrar).registerCustomer(any(), anyString());
 
-        assertThatThrownBy(() -> signupService.signUp("isuru@x.com", "a long passphrase"))
-                .isInstanceOf(EmailAlreadyUsedException.class);
+        SignupOutcome outcome = signupService.signUp("isuru@x.com", PASSWORD);
 
-        verify(passwordEncoder, never()).encode(anyString());
-        verify(userRepository, never()).saveAndFlush(any());
+        assertThat(outcome).isEqualTo(SignupOutcome.EMAIL_ALREADY_REGISTERED);
+        verify(passwordEncoder).encode(PASSWORD);
     }
 
     @Test
-    void storesEmailNormalised() {
-        when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
-        when(passwordEncoder.encode(anyString())).thenReturn("$argon2id$hashed");
-        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
-
-        signupService.signUp("  Ｉsuru@X.com ", "a long passphrase");
-
-        assertThat(savedUser().getEmail()).isEqualTo("isuru@x.com");
-    }
-
-    @Test
-    void rejectsInvalidEmailBeforeTouchingTheDatabase() {
-        assertThatThrownBy(() -> signupService.signUp("not-an-email", "a long passphrase"))
+    void invalidEmailIsRejectedBeforeAnythingElse() {
+        assertThatThrownBy(() -> signupService.signUp("not-an-email", PASSWORD))
                 .isInstanceOf(InvalidEmailException.class);
 
-        verify(userRepository, never()).existsByEmail(anyString());
+        verify(passwordEncoder, never()).encode(anyString());
     }
 
     @Test
-    void duplicateDetectedByDatabaseUniqueConstraintBecomesEmailAlreadyUsed() {
-        // Race: both requests passed existsByEmail, the database rejects the second INSERT
-        when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
-        when(passwordEncoder.encode(anyString())).thenReturn("$argon2id$hashed");
-        when(userRepository.saveAndFlush(any(User.class))).thenThrow(uniqueViolation("uk_users_email"));
+    void weakPasswordIsRejectedBeforeLookingAtTheAccount() {
+        assertThatThrownBy(() -> signupService.signUp("isuru@x.com", "short"))
+                .isInstanceOf(WeakPasswordException.class);
 
-        assertThatThrownBy(() -> signupService.signUp("isuru@x.com", "a long passphrase"))
-                .isInstanceOf(EmailAlreadyUsedException.class);
+        verify(registrar, never()).registerCustomer(any(), anyString());
+        verify(passwordEncoder, never()).encode(anyString());
     }
 
     @Test
-    void otherDatabaseConstraintErrorsAreNotHidden() {
-        when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
-        when(passwordEncoder.encode(anyString())).thenReturn("$argon2id$hashed");
-        when(userRepository.saveAndFlush(any(User.class))).thenThrow(uniqueViolation("some_other_constraint"));
+    void theNfcNormalisedPasswordIsWhatGetsHashed() {
+        String composed = "café-password-long";
+        when(passwordEncoder.encode(composed)).thenReturn("{argon2}hash");
 
-        assertThatThrownBy(() -> signupService.signUp("isuru@x.com", "a long passphrase"))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
+        signupService.signUp("isuru@x.com", Normalizer.normalize(composed, Normalizer.Form.NFD));
 
-    @Test
-    void failsClearlyWhenCustomerRoleIsMissing() {
-        when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
-        when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> signupService.signUp("isuru@x.com", "a long passphrase"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(RoleName.CUSTOMER.name());
-    }
-
-    private User savedUser() {
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).saveAndFlush(captor.capture());
-        return captor.getValue();
-    }
-
-    private static DataIntegrityViolationException uniqueViolation(String constraintName) {
-        var cause = new ConstraintViolationException(
-                "duplicate key", new SQLException("duplicate key", "23505"), constraintName);
-        return new DataIntegrityViolationException("could not execute statement", cause);
+        verify(passwordEncoder).encode(composed);
     }
 }

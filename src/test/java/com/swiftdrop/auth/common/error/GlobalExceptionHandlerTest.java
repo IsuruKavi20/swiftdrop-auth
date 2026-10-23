@@ -45,7 +45,7 @@ class GlobalExceptionHandlerTest {
     void instanceIsARequestIdNotTheEchoedPath() throws Exception {
         mockMvc.perform(get("/test/<script>probe"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.instance").value(startsWith("urn:uuid:")))
+                .andExpect(jsonPath("$.instance").value(startsWith("urn:swiftdrop:request:")))
                 .andExpect(content().string(not(containsString("probe"))));
     }
 
@@ -114,7 +114,7 @@ class GlobalExceptionHandlerTest {
     void domainExceptionUsesItsErrorCode() throws Exception {
         mockMvc.perform(get("/test/domain"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_USED"));
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
     }
 
     @Test
@@ -167,7 +167,7 @@ class GlobalExceptionHandlerTest {
 
     static class TestConflictException extends DomainException {
         TestConflictException() {
-            super(ErrorCode.EMAIL_ALREADY_USED);
+            super(ErrorCode.CONFLICT);
         }
     }
 

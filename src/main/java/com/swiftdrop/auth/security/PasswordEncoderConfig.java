@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.security;
 
+import com.swiftdrop.auth.common.concurrency.Bulkhead;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
@@ -21,5 +22,11 @@ public class PasswordEncoderConfig {
                 settings.saltLengthBytes(), settings.hashLengthBytes(), settings.parallelism(),
                 settings.memoryKb(), settings.iterations());
         return new DelegatingPasswordEncoder(CURRENT_ENCODER_ID, Map.of(CURRENT_ENCODER_ID, argon2));
+    }
+
+    /** Shared by signup now and login later: caps concurrent breach checks + Argon2 hashes. */
+    @Bean
+    Bulkhead passwordWorkBulkhead(PasswordWorkProperties limits) {
+        return new Bulkhead(limits.maxConcurrent(), limits.maxWait());
     }
 }
