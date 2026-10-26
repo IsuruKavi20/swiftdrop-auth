@@ -7,6 +7,7 @@ import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +23,12 @@ class UserRegistrar {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final ApplicationEventPublisher events;
 
-    UserRegistrar(UserRepository userRepository, RoleRepository roleRepository) {
+    UserRegistrar(UserRepository userRepository, RoleRepository roleRepository, ApplicationEventPublisher events) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.events = events;
     }
 
     /** @throws DuplicateEmailException if the address is already registered (also under a concurrent race) */
@@ -40,7 +43,9 @@ class UserRegistrar {
         User user = new User(email, passwordHash);
         user.addRole(customer);
         try {
-            userRepository.saveAndFlush(user);
+            User saved = userRepository.saveAndFlush(user);
+            // Stored in the outbox in THIS transaction: the verification email can't be lost
+            events.publishEvent(new AccountRegistered(saved.getId()));
         } catch (DataIntegrityViolationException e) {
             // The existsByEmail check can race with a concurrent signup; the unique constraint is the real guard
             if (e.getCause() instanceof ConstraintViolationException violation
@@ -49,5 +54,12 @@ class UserRegistrar {
             }
             throw e;
         }
+    }
+
+    /** Lets the owner of an existing account know (by email) that someone tried to sign up with it. */
+    @Transactional
+    public void notifyExistingAccount(EmailAddress email) {
+        userRepository.findByEmail(email.value())
+                .ifPresent(existing -> events.publishEvent(new SignupAttemptOnExistingAccount(existing.getId())));
     }
 }

@@ -2,6 +2,8 @@ plan
 CLAUDE.md
 learning/
 .env
+# Local JWT signing keys (dev): never committed
+.secrets/
 
 HELP.md
 target/

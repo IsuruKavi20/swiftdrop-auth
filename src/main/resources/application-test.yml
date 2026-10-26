@@ -1,6 +1,24 @@
 # Automated tests: database settings come from Testcontainers (TestcontainersConfiguration).
 # Cheaper Argon2 settings keep tests fast; still within the validated minimums.
+spring:
+  mail:
+    # Placeholder so the mail auto-configuration switches on; TestcontainersConfiguration
+    # replaces host and port with the Mailpit container's.
+    host: localhost
+    port: 1025
+
 swiftdrop:
+  jwt:
+    issuer: http://localhost
+    # A fresh in-memory key per test run
+    ephemeral-key: true
+  frontend:
+    base-url: http://localhost:3000
+  # Tests exercise resend straight after signup; the cooldown itself is covered by unit tests
+  verification:
+    resend-cooldown: 0s
+  web:
+    anti-enumeration-min-duration: 0ms
   security:
     # Tests never call the real Have I Been Pwned service
     breached-password-check:

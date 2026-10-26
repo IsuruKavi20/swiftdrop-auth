@@ -45,6 +45,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (ex.errorCode().status().value() == 503 || ex.errorCode().status().value() == 429) {
             response.header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS);
         }
+        if (ex.errorCode().status().value() == 401) {
+            response.header(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        }
         return response.body(body);
     }
 

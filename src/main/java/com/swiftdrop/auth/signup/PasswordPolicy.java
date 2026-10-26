@@ -1,10 +1,10 @@
 package com.swiftdrop.auth.signup;
 
+import com.swiftdrop.auth.security.Passwords;
 import com.swiftdrop.auth.user.EmailAddress;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.stereotype.Component;
 
-import java.text.Normalizer;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -32,7 +32,7 @@ public class PasswordPolicy {
         if (rawPassword == null) {
             throw new WeakPasswordException("TooShort");
         }
-        String password = normalise(rawPassword);
+        String password = Passwords.normalise(rawPassword);
         int length = password.codePointCount(0, password.length());
         if (length < MIN_LENGTH) {
             throw new WeakPasswordException("TooShort");
@@ -47,14 +47,6 @@ public class PasswordPolicy {
             throw new WeakPasswordException("Breached");
         }
         return password;
-    }
-
-    /**
-     * NFC makes the different byte forms of the same character equal (e.g. "é" typed as one or two
-     * code points). Login must normalise the same way before comparing hashes.
-     */
-    public static String normalise(String rawPassword) {
-        return Normalizer.normalize(rawPassword, Normalizer.Form.NFC);
     }
 
     // "SwiftDrop2026!!" or "isuru.kavinda-isuru.kavinda" are just the service name / username decorated

@@ -61,6 +61,7 @@ class SignupServiceTest {
 
         assertThat(outcome).isEqualTo(SignupOutcome.EMAIL_ALREADY_REGISTERED);
         verify(passwordEncoder).encode(PASSWORD);
+        verify(registrar).notifyExistingAccount(EmailAddress.of("isuru@x.com"));
     }
 
     @Test

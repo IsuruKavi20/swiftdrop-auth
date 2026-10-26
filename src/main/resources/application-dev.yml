@@ -2,3 +2,23 @@
 spring:
   config:
     import: optional:file:.env[.properties]
+  mail:
+    host: localhost
+    port: 1025
+
+# Teammates' API contract: http://localhost:8080/swagger-ui.html and /v3/api-docs
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+swiftdrop:
+  jwt:
+    issuer: http://localhost:8080
+    # Generated on first start, kept in the git-ignored .secrets/ folder
+    private-key-location: .secrets/jwt-signing-key.pem
+    create-key-if-missing: true
+  # Email links point here. Configured, never taken from the request's Host header.
+  frontend:
+    base-url: http://localhost:3000

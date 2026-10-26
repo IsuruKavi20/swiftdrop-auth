@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
@@ -39,11 +40,14 @@ class UserRegistrarTest {
     @Mock
     private RoleRepository roleRepository;
 
+    @Mock
+    private ApplicationEventPublisher events;
+
     private UserRegistrar registrar;
 
     @BeforeEach
     void setUp() {
-        registrar = new UserRegistrar(userRepository, roleRepository);
+        registrar = new UserRegistrar(userRepository, roleRepository, events);
     }
 
     @Test
@@ -62,6 +66,7 @@ class UserRegistrarTest {
         assertThat(saved.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(saved.getValue().isEmailVerified()).isFalse();
         assertThat(saved.getValue().getRoles()).containsExactly(customer);
+        verify(events).publishEvent(any(AccountRegistered.class));
     }
 
     @Test
@@ -71,6 +76,7 @@ class UserRegistrarTest {
         assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, HASH))
                 .isInstanceOf(DuplicateEmailException.class);
         verify(userRepository, never()).saveAndFlush(any());
+        verify(events, never()).publishEvent(any());
     }
 
     @Test

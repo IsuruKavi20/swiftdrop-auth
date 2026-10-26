@@ -8,6 +8,17 @@ spring:
       connection-timeout: 5000
       max-lifetime: 1800000   # 30 min: recycle connections before DB/proxy idle timeouts cut them
 
+  # Real SMTP: credentials from the environment, TLS required. Missing values -> the app won't start.
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+
 server:
   shutdown: graceful
   error:
@@ -25,3 +36,9 @@ logging:
       console: ecs
   level:
     org.springframework.security: WARN
+
+swiftdrop:
+  jwt:
+    issuer: ${SWIFTDROP_JWT_ISSUER}
+    # Mounted secret file with the RSA private key (PKCS#8 PEM, >= 2048 bits). Missing -> no startup.
+    private-key-location: ${SWIFTDROP_JWT_PRIVATE_KEY_LOCATION}

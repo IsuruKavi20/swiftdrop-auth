@@ -38,6 +38,7 @@ public class SignupService {
             registrar.registerCustomer(email, passwordHash);
             return SignupOutcome.ACCOUNT_CREATED;
         } catch (DuplicateEmailException alreadyRegistered) {
+            registrar.notifyExistingAccount(email);
             return SignupOutcome.EMAIL_ALREADY_REGISTERED;
         }
     }

@@ -3,6 +3,7 @@ package com.swiftdrop.auth.signup.api;
 import com.swiftdrop.auth.common.concurrency.ServiceBusyException;
 import com.swiftdrop.auth.common.web.ApiPaths;
 import com.swiftdrop.auth.common.web.RequestIdFilter;
+import com.swiftdrop.auth.common.web.ResponseTimeFloor;
 import com.swiftdrop.auth.common.web.RequestSizeLimitFilter;
 import com.swiftdrop.auth.security.ProblemDetailsAccessDeniedHandler;
 import com.swiftdrop.auth.security.ProblemDetailsAuthenticationEntryPoint;
@@ -18,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -36,7 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = SignupController.class)
 @Import({SecurityConfig.class, ProblemDetailsAuthenticationEntryPoint.class, ProblemDetailsAccessDeniedHandler.class,
-        RequestIdFilter.class, RequestSizeLimitFilter.class})
+        RequestIdFilter.class, RequestSizeLimitFilter.class, ResponseTimeFloor.class})
+@TestPropertySource(properties = "swiftdrop.web.anti-enumeration-min-duration=0ms")
 class SignupControllerTest {
 
     private static final String SIGNUP = ApiPaths.AUTH + "/signup";

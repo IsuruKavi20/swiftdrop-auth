@@ -8,6 +8,15 @@ spring:
   autoconfigure:
     # We never want Spring's auto-generated in-memory "user" account
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  threads:
+    virtual:
+      # Java 25 virtual threads: blocking (DB, HIBP, the response-time floor) costs almost nothing
+      enabled: true
+  task:
+    execution:
+      simple:
+        # Background tasks (emails) are bounded: at most 16 at once
+        concurrency-limit: 16
   servlet:
     multipart:
       # We never accept file uploads: no multipart parsing at all (it would bypass our 16 KB limit)
@@ -21,6 +30,16 @@ spring:
       fail-on-null-for-primitives: true
     read:
       strict-duplicate-detection: true
+  modulith:
+    events:
+      jdbc:
+        # The table comes from Flyway (V5): the app role may not create tables
+        schema-initialization:
+          enabled: false
+      # Emails whose sending failed are retried when the app starts again
+      republish-outstanding-events-on-restart: true
+      # Delivered events are deleted, so the outbox table stays small
+      completion-mode: delete
   datasource:
     url: ${DB_URL}
     username: ${DB_APP_USER}
@@ -57,6 +76,13 @@ logging:
     # Every console log line carries the request ID (set by RequestIdFilter)
     correlation: "[%X{requestId:-}] "
 
+# API docs are OFF by default (no API map in production); the dev profile turns them on
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 management:
   endpoints:
     web:
@@ -81,3 +107,19 @@ swiftdrop:
       # At most 8 breach checks + hashes at once: worst case 8 x 64 MB = 512 MB. Busy -> 503 + Retry-After
       max-concurrent: 8
       max-wait: 200ms
+  jwt:
+    # Access tokens (RFC 9068): issuer comes per profile; private key location per profile / environment
+    audience: swiftdrop-api
+    client-id: swiftdrop-web
+    access-token-ttl: 15m
+    key-id: auth-2026-10
+  verification:
+    token-ttl: 24h
+    # Anti-flooding per user: no new email within 60 s, at most 5 per day
+    resend-cooldown: 60s
+    max-emails-per-day: 5
+  web:
+    # signup and resend never answer faster than this (anti-enumeration)
+    anti-enumeration-min-duration: 400ms
+  mail:
+    from: no-reply@swiftdrop.dev
