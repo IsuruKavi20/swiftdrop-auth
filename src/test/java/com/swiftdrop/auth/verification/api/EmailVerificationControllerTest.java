@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +43,10 @@ class EmailVerificationControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // The filter chain is a resource server and needs a decoder; these tests don't use tokens
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private EmailVerificationService service;

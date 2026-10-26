@@ -19,6 +19,7 @@ import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 /**
@@ -76,6 +77,37 @@ final class SigningKeys {
             Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new IllegalStateException("Could not write the JWT signing key to " + file.toAbsolutePath(), e);
+        }
+    }
+
+    /** A previous key's PUBLIC half ("BEGIN PUBLIC KEY", X.509), used only to verify during a rotation overlap. */
+    static RSAKey loadPublic(Path file, String keyId) {
+        try {
+            String pem = Files.readString(file, StandardCharsets.US_ASCII);
+            String base64 = pem.replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s", "");
+            RSAPublicKey publicKey = (RSAPublicKey) KeyFactory.getInstance("RSA")
+                    .generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(base64)));
+            if (publicKey.getModulus().bitLength() < MIN_KEY_BITS) {
+                throw new IllegalStateException("JWT public key must be at least " + MIN_KEY_BITS + " bits");
+            }
+            return new RSAKey.Builder(publicKey).keyID(keyId).keyUse(KeyUse.SIGNATURE).algorithm(JWSAlgorithm.RS256)
+                    .build();
+        } catch (IOException | GeneralSecurityException | IllegalArgumentException | ClassCastException e) {
+            throw new IllegalStateException("Could not read the previous JWT public key " + file.toAbsolutePath()
+                    + " (expected an RSA public key in PEM format)", e);
+        }
+    }
+
+    /** Writes a PUBLIC key PEM: the file to keep as "previous key" when rotating. */
+    static void writePublicPem(Path file, RSAPublicKey publicKey) {
+        String body = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII))
+                .encodeToString(publicKey.getEncoded());
+        try {
+            Files.writeString(file, "-----BEGIN PUBLIC KEY-----\n" + body + "\n-----END PUBLIC KEY-----\n",
+                    StandardCharsets.US_ASCII);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not write the public key to " + file.toAbsolutePath(), e);
         }
     }
 

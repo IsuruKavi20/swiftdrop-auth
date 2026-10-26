@@ -51,6 +51,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
+		<!-- Accept access tokens on protected endpoints (Bearer token filter, JwtDecoder, JwtAuthenticationConverter) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+		</dependency>
 		<!-- JWT signing/verification: Spring's NimbusJwtEncoder/Decoder on top of Nimbus JOSE+JWT -->
 		<dependency>
 			<groupId>org.springframework.security</groupId>

@@ -30,7 +30,7 @@ class AccessTokenIssuerTest {
     private static final Instant NOW = Instant.now();
     private static final JwtProperties SETTINGS = new JwtProperties(
             URI.create("https://auth.swiftdrop.dev"), "swiftdrop-api", "swiftdrop-web",
-            Duration.ofMinutes(15), "auth-test", null, false, true);
+            Duration.ofMinutes(15), "auth-test", null, false, true, java.util.List.of());
 
     private final RSAKey signingKey = SigningKeys.generate("auth-test");
     private final AccessTokenIssuer issuer = new AccessTokenIssuer(
