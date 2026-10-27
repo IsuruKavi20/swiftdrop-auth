@@ -109,6 +109,30 @@ mockMvc.perform(get("/api/v1/deliveries/mine")
 (`spring-security-test`; `jwt()` from `SecurityMockMvcRequestPostProcessors`.) For real tokens in local runs,
 log in at `POST /api/v1/auth/login`. A dev test-token endpoint is coming (Step 9).
 
+## 6b. Getting a real token instantly (development only)
+Run the auth service locally (`docker compose up -d`, then `.\mvnw spring-boot:run`) and ask for any role:
+```bash
+curl -X POST http://localhost:8080/api/v1/dev/test-tokens \
+     -H "Content-Type: application/json" \
+     -d '{"roles":["COURIER"],"userId":"11111111-1111-1111-1111-111111111111"}'
+# → {"access_token":"eyJ...","token_type":"Bearer","expires_in":900}
+```
+- `roles`: 1–5 of CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN. `userId` is optional (random if missing).
+- Use two fixed IDs for the **courier-isolation test**: courier A `1111…`, courier B `2222…`. A's token must not
+  return B's deliveries.
+- The token is real (signed with the dev key, valid 15 min) and carries `"test_token": true`.
+- It **only exists on a developer's machine**: dev profile AND a `localhost` issuer, otherwise the auth service
+  refuses to start. Never build features that depend on it.
+- **Your service MUST reject test tokens outside development.** Add this validator in deployed profiles (it complements
+  the issuer/key checks, which already differ between dev and production):
+  ```java
+  OAuth2TokenValidator<Jwt> noTestTokens = jwt -> Boolean.TRUE.equals(jwt.getClaim("test_token"))
+          ? OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "test tokens not accepted", null))
+          : OAuth2TokenValidatorResult.success();
+  decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(atJwtValidator, noTestTokens));
+  ```
+- **Never deploy the `dev` profile** (not even to staging): deployed environments get their own profile.
+
 ## 7. Key rotation: nothing to do
 When the auth service rotates, the new key appears in the JWKS and signs new tokens from the same moment; the old
 public key stays published for ≥ 24 h so older tokens still verify. Spring's `jwk-set-uri` decoder caches the set

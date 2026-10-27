@@ -3,7 +3,7 @@ package com.swiftdrop.auth.login.api;
 import com.swiftdrop.auth.common.web.ApiPaths;
 import com.swiftdrop.auth.login.LoginService;
 import com.swiftdrop.auth.login.api.dto.LoginRequest;
-import com.swiftdrop.auth.login.api.dto.TokenResponse;
+import com.swiftdrop.auth.token.TokenResponse;
 import com.swiftdrop.auth.token.IssuedToken;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;

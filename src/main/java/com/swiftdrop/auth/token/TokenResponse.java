@@ -1,8 +1,11 @@
-package com.swiftdrop.auth.login.api.dto;
+package com.swiftdrop.auth.token;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-/** The standard OAuth 2.0 token response shape (RFC 6749 section 5.1), so any client library understands it. */
+/**
+ * The standard OAuth 2.0 token response shape (RFC 6749 section 5.1), so any client library understands it.
+ * Shared by login and the dev test-token endpoint, so clients handle both the same way.
+ */
 public record TokenResponse(
         @JsonProperty("access_token") String accessToken,
         @JsonProperty("token_type") String tokenType,

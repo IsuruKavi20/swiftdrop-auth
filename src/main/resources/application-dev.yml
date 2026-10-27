@@ -14,6 +14,11 @@ springdoc:
     enabled: true
 
 swiftdrop:
+  # Teammates: POST /api/v1/dev/test-tokens {"roles":["COURIER"]} for an instant dev token.
+  # Exists ONLY with the dev profile; production refuses to start if this is ever true there.
+  dev:
+    test-tokens:
+      enabled: true
   jwt:
     issuer: http://localhost:8080
     # Generated on first start, kept in the git-ignored .secrets/ folder

@@ -21,6 +21,8 @@ import java.util.UUID;
 public class AccessTokenIssuer {
 
     private static final String ACCESS_TOKEN_TYPE = "at+jwt";
+    /** Marks tokens from the dev-only test-token endpoint, so they're recognisable everywhere. */
+    public static final String TEST_TOKEN_CLAIM = "test_token";
 
     private final JwtEncoder encoder;
     private final JwtProperties settings;
@@ -33,13 +35,22 @@ public class AccessTokenIssuer {
     }
 
     public IssuedToken issue(UUID userId, List<String> roles) {
+        return sign(userId, roles, false);
+    }
+
+    /** Development only (see DevTestTokenController): same token, plus "test_token": true. */
+    public IssuedToken issueTestToken(UUID userId, List<String> roles) {
+        return sign(userId, roles, true);
+    }
+
+    private IssuedToken sign(UUID userId, List<String> roles, boolean testToken) {
         Instant now = clock.instant();
         // Spring's encoder doesn't set at+jwt by itself (spring-security#18325), so the header is explicit
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
                 .type(ACCESS_TOKEN_TYPE)
                 .keyId(settings.keyId())
                 .build();
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(settings.issuer().toString())
                 .subject(userId.toString())
                 .audience(List.of(settings.audience()))
@@ -47,9 +58,11 @@ public class AccessTokenIssuer {
                 .issuedAt(now)
                 .expiresAt(now.plus(settings.accessTokenTtl()))
                 .id(UUID.randomUUID().toString())
-                .claim("roles", List.copyOf(roles))
-                .build();
-        String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+                .claim("roles", List.copyOf(roles));
+        if (testToken) {
+            claims.claim(TEST_TOKEN_CLAIM, true);
+        }
+        String token = encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
         return new IssuedToken(token, settings.accessTokenTtl());
     }
 }

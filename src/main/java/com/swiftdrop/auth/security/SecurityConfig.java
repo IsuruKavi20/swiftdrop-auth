@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .requestMatchers(ApiPaths.AUTH + "/email-verification", ApiPaths.AUTH + "/email-verification/resend")
                         .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // Dev-only test tokens: this path only has a handler when DevTestTokenController exists
+                        .requestMatchers(HttpMethod.POST, ApiPaths.V1 + "/dev/test-tokens").permitAll()
                         // Our public key set: other services download it to verify tokens
                         .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
                         // API docs: only exist when springdoc is enabled (dev); elsewhere these paths are 404
@@ -67,6 +69,7 @@ public class SecurityConfig {
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/login"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification/**"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification"),
+                PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.V1 + "/dev/test-tokens"),
                 PathPatternRequestMatcher.withDefaults().matcher("/.well-known/**"),
                 PathPatternRequestMatcher.withDefaults().matcher("/actuator/health/**"));
         DefaultBearerTokenResolver standard = new DefaultBearerTokenResolver();

@@ -76,6 +76,16 @@ class AccessTokenIssuerTest {
     }
 
     @Test
+    void testTokensAreVisiblyMarkedAndNormalTokensAreNot() throws Exception {
+        Jwt test = verifier().decode(issuer.issueTestToken(UUID.randomUUID(), List.of("COURIER")).value());
+        Jwt normal = verifier().decode(issuer.issue(UUID.randomUUID(), List.of("COURIER")).value());
+
+        assertThat(test.getClaims()).containsEntry("test_token", true);
+        assertThat(test.getClaimAsStringList("roles")).containsExactly("COURIER");
+        assertThat(normal.getClaims()).doesNotContainKey("test_token");
+    }
+
+    @Test
     void everyTokenHasItsOwnId() {
         UUID userId = UUID.randomUUID();
 
