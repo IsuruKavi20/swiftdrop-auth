@@ -57,7 +57,7 @@ class LoginIT {
     void verifiedUserGetsATokenThatVerifiesWithOurPublicKey() throws Exception {
         String email = verifiedUser();
 
-        String token = login.login(email, PASSWORD).value();
+        String token = login.login(email, PASSWORD).accessToken().value();
 
         NimbusJwtDecoder otherService = NimbusJwtDecoder.withPublicKey(jwtSigningKey.toRSAPublicKey()).build();
         otherService.setJwtValidator(JwtValidators.createAtJwtValidator()
@@ -93,7 +93,7 @@ class LoginIT {
     void emailIsCaseInsensitiveAtLogin() {
         String email = verifiedUser();
 
-        assertThat(login.login(email.toUpperCase(), PASSWORD).value()).isNotBlank();
+        assertThat(login.login(email.toUpperCase(), PASSWORD).accessToken().value()).isNotBlank();
     }
 
     private String verifiedUser() {

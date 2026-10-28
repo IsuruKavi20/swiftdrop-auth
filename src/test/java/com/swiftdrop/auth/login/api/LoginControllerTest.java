@@ -11,6 +11,7 @@ import com.swiftdrop.auth.login.api.dto.LoginRequest;
 import com.swiftdrop.auth.security.ProblemDetailsAccessDeniedHandler;
 import com.swiftdrop.auth.security.ProblemDetailsAuthenticationEntryPoint;
 import com.swiftdrop.auth.security.SecurityConfig;
+import com.swiftdrop.auth.session.SessionTokens;
 import com.swiftdrop.auth.token.IssuedToken;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,13 +56,16 @@ class LoginControllerTest {
     @Test
     void successReturnsAStandardBearerTokenResponseThatIsNeverCached() throws Exception {
         when(loginService.login("isuru@x.com", PASSWORD))
-                .thenReturn(new IssuedToken("signed.jwt.value", Duration.ofMinutes(15)));
+                .thenReturn(new SessionTokens(new IssuedToken("signed.jwt.value", Duration.ofMinutes(15)),
+                        "refresh-token-value", Duration.ofDays(1)));
 
         login("isuru@x.com", PASSWORD)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.access_token").value("signed.jwt.value"))
                 .andExpect(jsonPath("$.token_type").value("Bearer"))
                 .andExpect(jsonPath("$.expires_in").value(900))
+                .andExpect(jsonPath("$.refresh_token").value("refresh-token-value"))
+                .andExpect(jsonPath("$.refresh_expires_in").value(86400))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(header().string("Pragma", "no-cache"));
     }

@@ -6,6 +6,8 @@ import com.swiftdrop.auth.token.DevToolsSafetyCheck;
 import com.swiftdrop.auth.token.IssuedToken;
 import com.swiftdrop.auth.token.TokenResponse;
 import com.swiftdrop.auth.token.api.dto.TestTokenRequest;
+import com.swiftdrop.auth.user.RoleName;
+import com.swiftdrop.auth.user.RolePermissions;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,17 +40,22 @@ public class DevTestTokenController {
     private static final Logger log = LoggerFactory.getLogger(DevTestTokenController.class);
 
     private final AccessTokenIssuer issuer;
+    private final RolePermissions rolePermissions;
 
     // Depending on the safety check guarantees it has run (and passed) before this controller can exist
-    public DevTestTokenController(AccessTokenIssuer issuer, DevToolsSafetyCheck safetyCheck) {
+    public DevTestTokenController(AccessTokenIssuer issuer, RolePermissions rolePermissions,
+                                  DevToolsSafetyCheck safetyCheck) {
         this.issuer = issuer;
+        this.rolePermissions = rolePermissions;
     }
 
     @PostMapping(value = PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<TokenResponse> testToken(@Valid @RequestBody TestTokenRequest request) {
         UUID userId = request.userId() != null ? request.userId() : UUID.randomUUID();
-        List<String> roles = request.roles().stream().map(Enum::name).distinct().toList();
-        IssuedToken token = issuer.issueTestToken(userId, roles);
+        List<RoleName> roleNames = request.roles().stream().distinct().toList();
+        List<String> roles = roleNames.stream().map(Enum::name).toList();
+        // Same permissions a real user with these roles would get, read from the database
+        IssuedToken token = issuer.issueTestToken(userId, roles, rolePermissions.permissionsOf(roleNames));
         // Visible in the logs on purpose (never the token itself)
         log.warn("DEV TEST TOKEN issued userId={} roles={}", userId, roles);
         return ResponseEntity.ok()

@@ -1,7 +1,9 @@
 package com.swiftdrop.auth.user;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,9 +23,24 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByEmail(String email);
 
-    /** For login: the user AND their roles in one query (roles are needed for the token, outside a transaction). */
-    @EntityGraph(attributePaths = "roles")
+    /** For login: the user, their roles AND those roles' permissions in one query (all go into the token). */
+    @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     Optional<User> findWithRolesByEmail(String email);
+
+    @Query("SELECT count(u) FROM User u JOIN u.roles r WHERE r.name = :role")
+    long countWithRole(@Param("role") RoleName role);
+
+    /**
+     * SELECT ... FOR UPDATE on the user row. Lock order everywhere: USER first, then refresh tokens / roles.
+     * It serialises login, refresh and role changes of the same user, so a revoke can't miss a new session.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> lockById(@Param("id") UUID id);
+
+    /** For administration and refresh: the user, roles and permissions in one query. */
+    @EntityGraph(attributePaths = {"roles", "roles.permissions"})
+    Optional<User> findWithRolesById(UUID id);
 
     /** Direct UPDATE, no version check: parallel logins of one user must not fail each other. */
     @Modifying

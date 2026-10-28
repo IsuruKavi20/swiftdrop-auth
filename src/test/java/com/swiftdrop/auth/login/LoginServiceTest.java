@@ -1,7 +1,8 @@
 package com.swiftdrop.auth.login;
 
 import com.swiftdrop.auth.common.concurrency.Bulkhead;
-import com.swiftdrop.auth.token.AccessTokenIssuer;
+import com.swiftdrop.auth.session.SessionService;
+import com.swiftdrop.auth.session.SessionTokens;
 import com.swiftdrop.auth.token.IssuedToken;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.Role;
@@ -23,7 +24,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,7 +31,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,7 +43,8 @@ class LoginServiceTest {
     private static final String HASH = "{argon2}$argon2id$user-hash";
     private static final String DUMMY = "{argon2}$argon2id$dummy-hash";
     private static final UUID USER_ID = UUID.randomUUID();
-    private static final IssuedToken TOKEN = new IssuedToken("signed.jwt.value", Duration.ofMinutes(15));
+    private static final SessionTokens TOKEN = new SessionTokens(
+            new IssuedToken("signed.jwt.value", Duration.ofMinutes(15)), "r".repeat(43), Duration.ofDays(1));
 
     @Mock
     private UserRepository users;
@@ -53,7 +53,7 @@ class LoginServiceTest {
     private PasswordEncoder encoder;
 
     @Mock
-    private AccessTokenIssuer tokens;
+    private SessionService tokens;
 
     @Mock
     private LoginRecorder recorder;
@@ -72,9 +72,9 @@ class LoginServiceTest {
         User user = user(true, UserStatus.ACTIVE);
         when(users.findWithRolesByEmail("isuru@x.com")).thenReturn(Optional.of(user));
         when(encoder.matches(PASSWORD, HASH)).thenReturn(true);
-        when(tokens.issue(USER_ID, List.of("CUSTOMER"))).thenReturn(TOKEN);
+        when(tokens.start(user)).thenReturn(TOKEN);
 
-        IssuedToken token = service.login("  Isuru@X.com ", PASSWORD);
+        SessionTokens token = service.login("  Isuru@X.com ", PASSWORD);
 
         assertThat(token).isEqualTo(TOKEN);
         verify(recorder).recordSuccessfulLogin(USER_ID, NOW, HASH, null);
@@ -116,7 +116,7 @@ class LoginServiceTest {
 
         assertThatThrownBy(() -> service.login("isuru@x.com", PASSWORD))
                 .isInstanceOf(InvalidCredentialsException.class);
-        verify(tokens, never()).issue(any(), any());
+        verify(tokens, never()).start(any());
     }
 
     @Test
@@ -128,7 +128,7 @@ class LoginServiceTest {
             assertThatThrownBy(() -> service.login("isuru@x.com", PASSWORD))
                     .isInstanceOf(InvalidCredentialsException.class);
         }
-        verify(tokens, never()).issue(any(), any());
+        verify(tokens, never()).start(any());
     }
 
     @Test
@@ -177,7 +177,7 @@ class LoginServiceTest {
         when(encoder.matches(PASSWORD, HASH)).thenReturn(true);
         when(encoder.upgradeEncoding(HASH)).thenReturn(true);
         when(encoder.encode(PASSWORD)).thenReturn("{argon2}$argon2id$stronger");
-        when(tokens.issue(eq(USER_ID), any())).thenReturn(TOKEN);
+        when(tokens.start(any())).thenReturn(TOKEN);
 
         service.login("isuru@x.com", PASSWORD);
 
@@ -189,11 +189,17 @@ class LoginServiceTest {
         String composed = "café-password-long";
         when(users.findWithRolesByEmail("isuru@x.com")).thenReturn(Optional.of(user(true, UserStatus.ACTIVE)));
         when(encoder.matches(composed, HASH)).thenReturn(true);
-        when(tokens.issue(eq(USER_ID), any())).thenReturn(TOKEN);
+        when(tokens.start(any())).thenReturn(TOKEN);
 
         service.login("isuru@x.com", Normalizer.normalize(composed, Normalizer.Form.NFD));
 
         verify(encoder).matches(composed, HASH);
+    }
+
+    private static com.swiftdrop.auth.user.Permission permission(String name) {
+        com.swiftdrop.auth.user.Permission permission = BeanUtils.instantiateClass(com.swiftdrop.auth.user.Permission.class);
+        ReflectionTestUtils.setField(permission, "name", name);
+        return permission;
     }
 
     private static User user(boolean verified, UserStatus status) {
@@ -203,6 +209,8 @@ class LoginServiceTest {
         // A real Role (not a mock): this helper runs inside when(...), where Mockito forbids nested stubbing
         Role customer = BeanUtils.instantiateClass(Role.class);
         ReflectionTestUtils.setField(customer, "name", RoleName.CUSTOMER);
+        ReflectionTestUtils.setField(customer, "permissions",
+                new java.util.HashSet<>(java.util.List.of(permission("parcel:read-own"), permission("parcel:create"))));
         user.addRole(customer);
         if (verified) {
             user.markEmailVerified();

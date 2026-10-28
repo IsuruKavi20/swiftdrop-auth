@@ -8,6 +8,8 @@ import com.swiftdrop.auth.security.SecurityConfig;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
 import com.swiftdrop.auth.token.DevToolsSafetyCheck;
 import com.swiftdrop.auth.token.IssuedToken;
+import com.swiftdrop.auth.user.RoleName;
+import com.swiftdrop.auth.user.RolePermissions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -58,9 +60,15 @@ class DevTestTokenControllerTest {
     @MockitoBean
     private DevToolsSafetyCheck safetyCheck;
 
+    @MockitoBean
+    private RolePermissions rolePermissions;
+
     @Test
     void anyKnownRoleGetsATokenWithoutLogin() throws Exception {
-        when(issuer.issueTestToken(eq(COURIER_A), eq(List.of("COURIER"))))
+        when(rolePermissions.permissionsOf(List.of(RoleName.COURIER)))
+                .thenReturn(List.of("delivery:read-own", "delivery:update-status"));
+        when(issuer.issueTestToken(eq(COURIER_A), eq(List.of("COURIER")),
+                eq(List.of("delivery:read-own", "delivery:update-status"))))
                 .thenReturn(new IssuedToken("test.jwt.value", Duration.ofMinutes(15)));
 
         request("{\"roles\":[\"COURIER\"],\"userId\":\"" + COURIER_A + "\"}")
@@ -73,7 +81,7 @@ class DevTestTokenControllerTest {
 
     @Test
     void userIdIsOptional() throws Exception {
-        when(issuer.issueTestToken(any(UUID.class), eq(List.of("ADMIN"))))
+        when(issuer.issueTestToken(any(UUID.class), eq(List.of("ADMIN")), any()))
                 .thenReturn(new IssuedToken("test.jwt.value", Duration.ofMinutes(15)));
 
         request("{\"roles\":[\"ADMIN\"]}").andExpect(status().isOk());
@@ -83,7 +91,7 @@ class DevTestTokenControllerTest {
     void unknownRoleIsRejected() throws Exception {
         request("{\"roles\":[\"SUPERUSER\"]}")
                 .andExpect(status().isBadRequest());
-        verify(issuer, never()).issueTestToken(any(), any());
+        verify(issuer, never()).issueTestToken(any(), any(), any());
     }
 
     @Test

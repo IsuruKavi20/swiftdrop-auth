@@ -2,20 +2,17 @@ package com.swiftdrop.auth.login;
 
 import com.swiftdrop.auth.common.concurrency.Bulkhead;
 import com.swiftdrop.auth.security.Passwords;
-import com.swiftdrop.auth.token.AccessTokenIssuer;
-import com.swiftdrop.auth.token.IssuedToken;
+import com.swiftdrop.auth.session.SessionService;
+import com.swiftdrop.auth.session.SessionTokens;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.InvalidEmailException;
-import com.swiftdrop.auth.user.Role;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
-import com.swiftdrop.auth.user.UserStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,25 +29,26 @@ public class LoginService {
 
     private final UserRepository users;
     private final PasswordEncoder encoder;
-    private final AccessTokenIssuer tokens;
+    private final SessionService sessions;
     private final LoginRecorder recorder;
     private final Bulkhead passwordWork;
     private final Clock clock;
     // A real hash with current settings, checked when there is no account: same cost, result ignored
     private final String dummyHash;
 
-    LoginService(UserRepository users, PasswordEncoder encoder, AccessTokenIssuer tokens, LoginRecorder recorder,
+    LoginService(UserRepository users, PasswordEncoder encoder, SessionService sessions, LoginRecorder recorder,
                  Bulkhead passwordWork, Clock clock) {
         this.users = users;
         this.encoder = encoder;
-        this.tokens = tokens;
+        this.sessions = sessions;
         this.recorder = recorder;
         this.passwordWork = passwordWork;
         this.clock = clock;
         this.dummyHash = encoder.encode(UUID.randomUUID().toString());
     }
 
-    public IssuedToken login(String rawEmail, String rawPassword) {
+    /** Returns an access token plus a refresh token that starts a new session. */
+    public SessionTokens login(String rawEmail, String rawPassword) {
         Optional<User> account = findAccount(rawEmail);
         String password = Passwords.normalise(rawPassword == null ? "" : rawPassword);
 
@@ -61,7 +59,8 @@ public class LoginService {
         });
 
         Instant now = clock.instant();
-        if (!correctPassword || !canLogIn(account.get(), now)) {
+        // Locked and disabled accounts are hidden behind the generic answer (OWASP)
+        if (!correctPassword || !account.get().isActiveAt(now)) {
             throw new InvalidCredentialsException();
         }
         User user = account.get();
@@ -70,7 +69,7 @@ public class LoginService {
         }
 
         recorder.recordSuccessfulLogin(user.getId(), now, user.getPasswordHash(), upgradedHash(user, password));
-        return tokens.issue(user.getId(), roleNames(user));
+        return sessions.start(user);
     }
 
     private Optional<User> findAccount(String rawEmail) {
@@ -93,21 +92,11 @@ public class LoginService {
         }
     }
 
-    // Locked and disabled accounts are hidden behind the generic answer (OWASP)
-    private static boolean canLogIn(User user, Instant now) {
-        boolean temporarilyLocked = user.getLockedUntil() != null && now.isBefore(user.getLockedUntil());
-        return user.getStatus() == UserStatus.ACTIVE && !temporarilyLocked;
-    }
-
     // While we have the plain password, re-hash it if the stored hash used older, weaker settings
     private String upgradedHash(User user, String password) {
         if (!encoder.upgradeEncoding(user.getPasswordHash())) {
             return null;
         }
         return passwordWork.call(() -> encoder.encode(password));
-    }
-
-    private static List<String> roleNames(User user) {
-        return user.getRoles().stream().map(Role::getName).map(Enum::name).sorted().toList();
     }
 }

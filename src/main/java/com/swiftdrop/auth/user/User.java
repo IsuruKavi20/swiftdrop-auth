@@ -19,6 +19,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -85,6 +86,30 @@ public class User {
 
     public void addRole(Role role) {
         roles.add(role);
+    }
+
+    public void removeRole(RoleName name) {
+        roles.removeIf(role -> role.getName() == name);
+    }
+
+    public boolean hasRole(RoleName name) {
+        return roles.stream().anyMatch(role -> role.getName() == name);
+    }
+
+    /** Active and not temporarily locked: may hold a session (email verification is checked separately). */
+    public boolean isActiveAt(Instant now) {
+        boolean temporarilyLocked = lockedUntil != null && now.isBefore(lockedUntil);
+        return status == UserStatus.ACTIVE && !temporarilyLocked;
+    }
+
+    /** Role names for the token's "roles" claim, sorted. */
+    public List<String> roleNames() {
+        return roles.stream().map(role -> role.getName().name()).sorted().toList();
+    }
+
+    /** Union of the roles' permissions for the token's "entitlements" claim, sorted. */
+    public List<String> permissionNames() {
+        return roles.stream().flatMap(role -> role.permissionNames().stream()).distinct().sorted().toList();
     }
 
     public void markEmailVerified() {

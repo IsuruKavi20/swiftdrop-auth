@@ -116,6 +116,10 @@ swiftdrop:
     # Key rotation overlap (see docs/integration): earlier public keys still accepted and published, e.g.
     # previous-keys: [{key-id: auth-2026-09, public-key-location: /run/secrets/jwt-2026-09.pub.pem}]
     previous-keys: []
+  session:
+    # Refresh tokens: 1 day without use, or 7 days since login, ends the session (security over convenience)
+    idle-timeout: 1d
+    absolute-timeout: 7d
   verification:
     token-ttl: 24h
     # Anti-flooding per user: no new email within 60 s, at most 5 per day

@@ -55,7 +55,7 @@ class AccessTokenIssuerTest {
     void issuesAnRfc9068AccessTokenThatOtherServicesCanVerify() throws Exception {
         UUID userId = UUID.randomUUID();
 
-        IssuedToken token = issuer.issue(userId, List.of("CUSTOMER"));
+        IssuedToken token = issuer.issue(userId, List.of("CUSTOMER"), List.of());
         Jwt jwt = verifier().decode(token.value());
 
         assertThat(jwt.getHeaders()).containsEntry("alg", "RS256").containsEntry("typ", "at+jwt")
@@ -69,16 +69,24 @@ class AccessTokenIssuerTest {
     }
 
     @Test
+    void permissionsTravelInTheEntitlementsClaim() throws Exception {
+        Jwt jwt = verifier().decode(issuer.issue(UUID.randomUUID(), List.of("DISPATCHER"),
+                List.of("delivery:read-all", "parcel:assign")).value());
+
+        assertThat(jwt.getClaimAsStringList("entitlements")).containsExactly("delivery:read-all", "parcel:assign");
+    }
+
+    @Test
     void tokenContainsNoPersonalData() throws Exception {
-        Jwt jwt = verifier().decode(issuer.issue(UUID.randomUUID(), List.of("CUSTOMER")).value());
+        Jwt jwt = verifier().decode(issuer.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()).value());
 
         assertThat(jwt.getClaims()).doesNotContainKeys("email", "name", "preferred_username");
     }
 
     @Test
     void testTokensAreVisiblyMarkedAndNormalTokensAreNot() throws Exception {
-        Jwt test = verifier().decode(issuer.issueTestToken(UUID.randomUUID(), List.of("COURIER")).value());
-        Jwt normal = verifier().decode(issuer.issue(UUID.randomUUID(), List.of("COURIER")).value());
+        Jwt test = verifier().decode(issuer.issueTestToken(UUID.randomUUID(), List.of("COURIER"), List.of()).value());
+        Jwt normal = verifier().decode(issuer.issue(UUID.randomUUID(), List.of("COURIER"), List.of()).value());
 
         assertThat(test.getClaims()).containsEntry("test_token", true);
         assertThat(test.getClaimAsStringList("roles")).containsExactly("COURIER");
@@ -89,8 +97,8 @@ class AccessTokenIssuerTest {
     void everyTokenHasItsOwnId() {
         UUID userId = UUID.randomUUID();
 
-        assertThat(issuer.issue(userId, List.of("CUSTOMER")).value())
-                .isNotEqualTo(issuer.issue(userId, List.of("CUSTOMER")).value());
+        assertThat(issuer.issue(userId, List.of("CUSTOMER"), List.of()).value())
+                .isNotEqualTo(issuer.issue(userId, List.of("CUSTOMER"), List.of()).value());
     }
 
     @Test

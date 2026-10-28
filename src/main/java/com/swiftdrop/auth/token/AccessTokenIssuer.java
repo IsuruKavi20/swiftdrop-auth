@@ -34,16 +34,20 @@ public class AccessTokenIssuer {
         this.clock = clock;
     }
 
-    public IssuedToken issue(UUID userId, List<String> roles) {
-        return sign(userId, roles, false);
+    /**
+     * @param roles        e.g. ["COURIER"]
+     * @param entitlements the permissions those roles grant (RFC 9068 / RFC 7643 claim name), e.g. ["delivery:read-own"]
+     */
+    public IssuedToken issue(UUID userId, List<String> roles, List<String> entitlements) {
+        return sign(userId, roles, entitlements, false);
     }
 
     /** Development only (see DevTestTokenController): same token, plus "test_token": true. */
-    public IssuedToken issueTestToken(UUID userId, List<String> roles) {
-        return sign(userId, roles, true);
+    public IssuedToken issueTestToken(UUID userId, List<String> roles, List<String> entitlements) {
+        return sign(userId, roles, entitlements, true);
     }
 
-    private IssuedToken sign(UUID userId, List<String> roles, boolean testToken) {
+    private IssuedToken sign(UUID userId, List<String> roles, List<String> entitlements, boolean testToken) {
         Instant now = clock.instant();
         // Spring's encoder doesn't set at+jwt by itself (spring-security#18325), so the header is explicit
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
@@ -58,7 +62,8 @@ public class AccessTokenIssuer {
                 .issuedAt(now)
                 .expiresAt(now.plus(settings.accessTokenTtl()))
                 .id(UUID.randomUUID().toString())
-                .claim("roles", List.copyOf(roles));
+                .claim("roles", List.copyOf(roles))
+                .claim("entitlements", List.copyOf(entitlements));
         if (testToken) {
             claims.claim(TEST_TOKEN_CLAIM, true);
         }
