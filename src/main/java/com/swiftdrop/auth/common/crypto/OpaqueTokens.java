@@ -38,6 +38,23 @@ public final class OpaqueTokens {
         }
     }
 
+    /** PKCE "S256" (RFC 7636): base64url(SHA-256(verifier)), 43 characters. */
+    public static String s256(String verifier) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII));
+            return BASE64_URL.encodeToString(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required by the Java platform", e);
+        }
+    }
+
+    /** Constant-time comparison, so response timing reveals nothing about how much of a secret matched. */
+    public static boolean matches(String expected, String actual) {
+        return expected != null && actual != null
+                && MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
+                actual.getBytes(StandardCharsets.US_ASCII));
+    }
+
     public static boolean isWellFormed(String candidate) {
         return candidate != null && WELL_FORMED.matcher(candidate).matches();
     }

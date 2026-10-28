@@ -1,4 +1,4 @@
-package com.swiftdrop.auth.verification;
+package com.swiftdrop.auth.common.web;
 
 import org.junit.jupiter.api.Test;
 

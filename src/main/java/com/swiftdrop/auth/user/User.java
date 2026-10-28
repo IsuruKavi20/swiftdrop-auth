@@ -112,6 +112,11 @@ public class User {
         return roles.stream().flatMap(role -> role.permissionNames().stream()).distinct().sorted().toList();
     }
 
+    /** Removes the password: the account can then only log in with Google (until a password reset sets one). */
+    public void removePassword() {
+        this.passwordHash = null;
+    }
+
     public void markEmailVerified() {
         this.emailVerified = true;
     }

@@ -1,4 +1,4 @@
-package com.swiftdrop.auth.verification;
+package com.swiftdrop.auth.common.web;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -6,7 +6,7 @@ import java.net.URI;
 import java.util.Set;
 
 /**
- * {@code swiftdrop.frontend.base-url}: where links in emails point. It comes from configuration and is
+ * {@code swiftdrop.frontend.base-url}: where links in emails and login redirects point. It comes from configuration and is
  * never built from the request's Host header (an attacker could otherwise make emails link to their site).
  * Must be https, except http://localhost for development.
  */
@@ -35,7 +35,7 @@ public record FrontendProperties(URI baseUrl) {
         }
     }
 
-    URI link(String path) {
+    public URI link(String path) {
         return URI.create(baseUrl.getScheme() + "://" + baseUrl.getRawAuthority() + path);
     }
 }

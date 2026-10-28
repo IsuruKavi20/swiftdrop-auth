@@ -27,6 +27,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     Optional<User> findWithRolesByEmail(String email);
 
+    /** Only the id: lets a caller take the row lock ({@link #lockById}) before reading the user. */
+    @Query("select u.id from User u where u.email = :email")
+    Optional<UUID> findIdByEmail(@Param("email") String email);
+
     @Query("SELECT count(u) FROM User u JOIN u.roles r WHERE r.name = :role")
     long countWithRole(@Param("role") RoleName role);
 

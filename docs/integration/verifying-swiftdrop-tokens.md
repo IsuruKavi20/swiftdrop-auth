@@ -182,6 +182,29 @@ Login returns two tokens:
 - Web: keep the refresh token in memory, **never in localStorage** (any XSS could read it). Mobile: Keychain /
   Android Keystore-backed storage.
 
+## 6d. For the frontend team: "Continue with Google"
+1. Before leaving, make a **verifier** and its **challenge** (this proves later that the code came back to the SAME
+   browser; without it an attacker could log you into *their* account):
+   ```js
+   const bytes = crypto.getRandomValues(new Uint8Array(32));
+   const verifier = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+   const challenge = btoa(String.fromCharCode(...hash)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+   sessionStorage.setItem("google_verifier", verifier);
+   location.href = "http://localhost:8080/oauth2/authorization/google?code_challenge=" + challenge;
+   ```
+   (full page navigation, not fetch/XHR)
+2. After Google, the user lands on **your** page `/auth/callback` with either
+   `#code=<43 chars>` or `#error=login_failed` in the URL fragment (never sent to any server).
+   **Immediately** remove it from the address bar: `history.replaceState(null, "", "/auth/callback")`.
+   The callback page must load no third-party scripts.
+3. Within 60 seconds: `POST /api/v1/auth/google/exchange` with
+   `{"code":"...","verifier":sessionStorage.getItem("google_verifier")}` → the same token response as login
+   (`access_token`, `refresh_token`, ...). The code works **once** (even a wrong verifier burns it). Then delete the
+   verifier from sessionStorage.
+4. `#error=login_failed` or a `401 INVALID_LOGIN_CODE`: show "Google sign-in failed, please try again".
+Google users are normal SwiftDrop users: same tokens, same roles (from our database, never from Google).
+
 ## 7. Key rotation: nothing to do
 When the auth service rotates, the new key appears in the JWKS and signs new tokens from the same moment; the old
 public key stays published for ≥ 24 h so older tokens still verify. Spring's `jwk-set-uri` decoder caches the set

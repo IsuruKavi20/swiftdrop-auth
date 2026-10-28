@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.verification;
 
+import com.swiftdrop.auth.common.web.FrontendProperties;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.InvalidEmailException;
 import com.swiftdrop.auth.user.User;

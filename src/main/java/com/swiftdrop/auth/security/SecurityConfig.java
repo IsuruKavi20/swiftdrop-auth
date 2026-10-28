@@ -66,6 +66,8 @@ public class SecurityConfig {
                         // The refresh token in the body IS the credential here (no access token needed)
                         .requestMatchers(HttpMethod.POST, ApiPaths.AUTH + "/refresh", ApiPaths.AUTH + "/logout")
                         .permitAll()
+                        // Google login's last step: the one-time code in the body is the credential
+                        .requestMatchers(HttpMethod.POST, ApiPaths.AUTH + "/google/exchange").permitAll()
                         // Any method is let through so a GET gets an honest 405, not a misleading 401
                         .requestMatchers(ApiPaths.AUTH + "/email-verification", ApiPaths.AUTH + "/email-verification/resend")
                         .permitAll()
@@ -89,6 +91,7 @@ public class SecurityConfig {
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/login"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/refresh"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/logout"),
+                PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/google/exchange"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification/**"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.V1 + "/dev/test-tokens"),

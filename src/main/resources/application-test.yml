@@ -14,6 +14,10 @@ swiftdrop:
     ephemeral-key: true
   frontend:
     base-url: http://localhost:3000
+  # A dummy Google client: switches the Google login chain on; Google itself is never called in tests
+  google:
+    client-id: test-client.apps.googleusercontent.com
+    client-secret: test-secret
   # Tests exercise resend straight after signup; the cooldown itself is covered by unit tests
   verification:
     resend-cooldown: 0s

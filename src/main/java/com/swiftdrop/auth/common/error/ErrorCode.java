@@ -20,6 +20,7 @@ public enum ErrorCode {
             "The password does not meet the password rules. See errors for the reason."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Login failed", "Invalid email or password."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Session ended", "Your session has ended. Log in again."),
+    INVALID_LOGIN_CODE(HttpStatus.UNAUTHORIZED, "Sign-in expired", "This sign-in has expired. Please start again."),
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Email not verified",
             "Verify your email address before logging in. You can request a new verification link."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Authentication required",

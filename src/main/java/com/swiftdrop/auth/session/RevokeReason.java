@@ -5,5 +5,7 @@ public enum RevokeReason {
     LOGOUT,
     REUSE_DETECTED,
     ROLE_CHANGED,
-    ACCOUNT_DISABLED
+    ACCOUNT_DISABLED,
+    /** An unverified password account was taken back by its real owner through Google (pre-hijack). */
+    ACCOUNT_RECLAIMED
 }
