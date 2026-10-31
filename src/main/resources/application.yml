@@ -1,0 +1,168 @@
+# Shared, secure-by-default settings for every environment.
+# Pick an environment with SPRING_PROFILES_ACTIVE=dev|test|prod. There is deliberately NO default:
+# a forgotten profile must fail at startup, never silently run with dev settings.
+# Locally, ./mvnw spring-boot:run activates "dev" (configured in pom.xml).
+spring:
+  application:
+    name: auth
+  autoconfigure:
+    # We never want Spring's auto-generated in-memory "user" account
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  threads:
+    virtual:
+      # Java 25 virtual threads: blocking (DB, HIBP, the response-time floor) costs almost nothing
+      enabled: true
+  task:
+    execution:
+      simple:
+        # Background tasks (emails) are bounded: at most 16 at once
+        concurrency-limit: 16
+  servlet:
+    multipart:
+      # We never accept file uploads: no multipart parsing at all (it would bypass our 16 KB limit)
+      enabled: false
+  jackson:
+    # Strict JSON: the request DTO is the allow-list of accepted fields (stops mass assignment).
+    # Set explicitly: never rely on framework defaults for security behaviour.
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-trailing-tokens: true
+      fail-on-null-for-primitives: true
+    read:
+      strict-duplicate-detection: true
+  modulith:
+    events:
+      jdbc:
+        # The table comes from Flyway (V5): the app role may not create tables
+        schema-initialization:
+          enabled: false
+      # Emails whose sending failed are retried when the app starts again
+      republish-outstanding-events-on-restart: true
+      # Delivered events are deleted, so the outbox table stays small
+      completion-mode: delete
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_APP_USER}
+    password: ${DB_APP_PASSWORD}
+  jpa:
+    open-in-view: false
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: identity
+  flyway:
+    user: ${DB_MIGRATOR_USER}
+    password: ${DB_MIGRATOR_PASSWORD}
+    schemas: identity
+    default-schema: identity
+    create-schemas: false
+    clean-disabled: true
+
+server:
+  # 9000: the team's backend uses Spring's default 8080 on the same machine
+  port: 9000
+  # The only HTTP session is Google login's 5-minute dance (state, PKCE verifier, nonce, browser challenge).
+  # SameSite=Lax (not Strict): the cookie must come back on Google's top-level redirect to our callback.
+  servlet:
+    session:
+      timeout: 5m
+      cookie:
+        name: SWIFTDROP_LOGIN
+        http-only: true
+        same-site: lax
+  tomcat:
+    # Form posts are parsed by Tomcat, not by our size-limit filter: cap them the same way
+    max-http-form-post-size: 16KB
+  error:
+    # Never leak internals in error responses
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    include-binding-errors: never
+
+logging:
+  pattern:
+    # Every console log line carries the request ID (set by RequestIdFilter)
+    correlation: "[%X{requestId:-}] "
+
+# API docs are OFF by default (no API map in production); the dev profile turns them on
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+swiftdrop:
+  security:
+    password:
+      # Argon2id (OWASP-compliant). Re-tune per server to ~250 ms per hash.
+      salt-length-bytes: 16
+      hash-length-bytes: 32
+      parallelism: 2
+      memory-kb: 65536
+      iterations: 2
+    password-work:
+      # At most 8 breach checks + hashes at once: worst case 8 x 64 MB = 512 MB. Busy -> 503 + Retry-After
+      max-concurrent: 8
+      max-wait: 200ms
+  jwt:
+    # Access tokens (RFC 9068): issuer comes per profile; private key location per profile / environment
+    audience: swiftdrop-api
+    client-id: swiftdrop-web
+    access-token-ttl: 15m
+    key-id: auth-2026-10
+    # Key rotation overlap (see docs/integration): earlier public keys still accepted and published, e.g.
+    # previous-keys: [{key-id: auth-2026-09, public-key-location: /run/secrets/jwt-2026-09.pub.pem}]
+    previous-keys: []
+  # Browser access (CORS): exact frontend origins, comma-separated in the env var. Empty = none (fail closed).
+  cors:
+    allowed-origins: ${SWIFTDROP_CORS_ALLOWED_ORIGINS:}
+  # Per-IP limits on the public endpoints (deep dive 26). 429 + Retry-After when a bucket is empty.
+  rate-limit:
+    enabled: true
+    max-tracked-keys: 100000
+    rules:
+      - {name: login, method: POST, path: /api/v1/auth/login, per-minute: 10}
+      - {name: signup, method: POST, path: /api/v1/auth/signup, per-minute: 5}
+      - {name: resend, method: POST, path: /api/v1/auth/email-verification/resend, per-minute: 5}
+      - {name: verify, method: POST, path: /api/v1/auth/email-verification, per-minute: 20}
+      - {name: refresh, method: POST, path: /api/v1/auth/refresh, per-minute: 30}
+      - {name: logout, method: POST, path: /api/v1/auth/logout, per-minute: 30}
+      - {name: google-start, method: GET, path: /oauth2/authorization/google, per-minute: 10}
+      - {name: google-exchange, method: POST, path: /api/v1/auth/google/exchange, per-minute: 10}
+      - {name: merchant-token, method: POST, path: /oauth2/token, per-minute: 30}
+      - {name: merchant-apply, method: POST, path: /api/v1/merchants/application, per-minute: 5}
+      - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
+  # Google login: the OAuth client from Google Cloud Console (env vars / .env). Empty = Google login off (dev only).
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+    # Prod: the public https address of this service (Google's redirect URI is pinned to it)
+    public-base-url: ${SWIFTDROP_PUBLIC_BASE_URL:}
+  session:
+    # Refresh tokens: 1 day without use, or 7 days since login, ends the session (security over convenience)
+    idle-timeout: 1d
+    absolute-timeout: 7d
+  verification:
+    token-ttl: 24h
+    # Anti-flooding per user: no new email within 60 s, at most 5 per day
+    resend-cooldown: 60s
+    max-emails-per-day: 5
+  web:
+    # signup and resend never answer faster than this (anti-enumeration)
+    anti-enumeration-min-duration: 400ms
+  mail:
+    from: no-reply@swiftdrop.dev

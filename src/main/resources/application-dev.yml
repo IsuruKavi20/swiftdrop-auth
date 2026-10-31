@@ -1,0 +1,33 @@
+# Your laptop: secrets come from the git-ignored .env file.
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  mail:
+    host: localhost
+    port: 1025
+
+# Teammates' API contract: http://localhost:9000/swagger-ui.html and /v3/api-docs
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+swiftdrop:
+  # Teammates: POST /api/v1/dev/test-tokens {"roles":["COURIER"]} for an instant dev token.
+  # Exists ONLY with the dev profile; production refuses to start if this is ever true there.
+  dev:
+    test-tokens:
+      enabled: true
+  jwt:
+    issuer: http://localhost:9000
+    # Generated on first start, kept in the git-ignored .secrets/ folder
+    private-key-location: .secrets/jwt-signing-key.pem
+    create-key-if-missing: true
+  # Email links point here. Configured, never taken from the request's Host header.
+  frontend:
+    # The team's React app (Vite dev server)
+    base-url: http://localhost:5173
+  # Their React app (5173) and any local frontend on 3000 may call us from the browser
+  cors:
+    allowed-origins: http://localhost:5173, http://localhost:3000

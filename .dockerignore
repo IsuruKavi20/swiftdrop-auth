@@ -1,0 +1,22 @@
+# Only what the build needs goes into the Docker build context: never secrets, notes or build output
+.git
+.gitignore
+.gitattributes
+.env
+.env.*
+.secrets/
+target/
+learning/
+plan/
+docs/
+CLAUDE.md
+*.md
+*.log
+hs_err_pid*
+.vscode/
+.idea/
+*.iml
+docker/
+docker-compose*.yml
+Dockerfile
+.dockerignore

@@ -1,0 +1,58 @@
+# Production: every secret comes from real environment variables / a secret store (no .env).
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+      max-lifetime: 1800000   # 30 min: recycle connections before DB/proxy idle timeouts cut them
+
+  # Real SMTP: credentials from the environment, TLS required. Missing values -> the app won't start.
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+
+server:
+  shutdown: graceful
+  # Behind the load balancer: take the client IP from the trusted proxy's X-Forwarded-For (rate limits per real IP).
+  # The proxy MUST overwrite client-sent X-Forwarded-* headers (deployment course).
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Regex of OUR load balancer's addresses: only these may set X-Forwarded-For. Required: no value, no startup.
+      internal-proxies: ${SWIFTDROP_TRUSTED_PROXIES}
+  servlet:
+    session:
+      cookie:
+        secure: true
+  error:
+    whitelabel:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      show-components: never
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    org.springframework.security: WARN
+
+swiftdrop:
+  # Where email links and the Google login send users (the real frontend, https). Missing -> no startup.
+  frontend:
+    base-url: ${SWIFTDROP_FRONTEND_BASE_URL}
+  jwt:
+    issuer: ${SWIFTDROP_JWT_ISSUER}
+    # Mounted secret file with the RSA private key (PKCS#8 PEM, >= 2048 bits). Missing -> no startup.
+    private-key-location: ${SWIFTDROP_JWT_PRIVATE_KEY_LOCATION}

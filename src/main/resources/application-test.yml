@@ -1,0 +1,38 @@
+# Automated tests: database settings come from Testcontainers (TestcontainersConfiguration).
+# Cheaper Argon2 settings keep tests fast; still within the validated minimums.
+spring:
+  mail:
+    # Placeholder so the mail auto-configuration switches on; TestcontainersConfiguration
+    # replaces host and port with the Mailpit container's.
+    host: localhost
+    port: 1025
+
+swiftdrop:
+  jwt:
+    issuer: http://localhost
+    # A fresh in-memory key per test run
+    ephemeral-key: true
+  frontend:
+    base-url: http://localhost:3000
+  cors:
+    allowed-origins: http://localhost:5173
+  # A dummy Google client: switches the Google login chain on; Google itself is never called in tests
+  google:
+    client-id: test-client.apps.googleusercontent.com
+    client-secret: test-secret
+  # Tests exercise resend straight after signup; the cooldown itself is covered by unit tests
+  verification:
+    resend-cooldown: 0s
+  web:
+    anti-enumeration-min-duration: 0ms
+  # Tests log in many times from 127.0.0.1; limits are tested on their own (RateLimitFilterTest, RateLimitIT)
+  rate-limit:
+    enabled: false
+  security:
+    # Tests never call the real Have I Been Pwned service
+    breached-password-check:
+      enabled: false
+    password:
+      parallelism: 1
+      memory-kb: 19456
+      iterations: 2
