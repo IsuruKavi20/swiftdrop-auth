@@ -42,7 +42,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.errorCode().status());
         // Overload / rate limits tell well-behaved clients when to come back (RFC 9110 Retry-After)
-        if (ex.errorCode().status().value() == 503 || ex.errorCode().status().value() == 429) {
+        if (ex instanceof RateLimitedException limited) {
+            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(limited.retryAfterSeconds()));
+        } else if (ex.errorCode().status().value() == 503 || ex.errorCode().status().value() == 429) {
             response.header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS);
         }
         if (ex.errorCode().status().value() == 401) {

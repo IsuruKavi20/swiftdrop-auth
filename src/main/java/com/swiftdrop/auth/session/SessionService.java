@@ -80,11 +80,7 @@ public class SessionService {
             tokens.revokeFamily(current.getFamilyId(), RevokeReason.ACCOUNT_DISABLED, now);
             throw new InvalidRefreshTokenException();
         }
-        if (!user.isActiveAt(now)) {
-            // Temporarily locked (e.g. failed logins, Step 14): refuse, but don't let a stranger's failed
-            // logins end the real user's session
-            throw new InvalidRefreshTokenException();
-        }
+        // A temporary failed-password lock does NOT stop refresh: it guards password guessing only (Step 14)
         current.markUsed(now);
         tokens.flush();   // the old token is used BEFORE the new one exists (one live token per family)
         return issue(user, current.getFamilyId(), current.getFamilyExpiresAt(), now);

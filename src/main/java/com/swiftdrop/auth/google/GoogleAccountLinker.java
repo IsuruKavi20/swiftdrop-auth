@@ -109,7 +109,7 @@ public class GoogleAccountLinker {
     }
 
     private static User requireUsable(User user, Instant now) {
-        if (!user.isActiveAt(now)) {
+        if (!user.isUsable()) {
             throw new GoogleLoginRefusedException("Account not active");
         }
         return user;

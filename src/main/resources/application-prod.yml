@@ -21,6 +21,13 @@ spring:
 
 server:
   shutdown: graceful
+  # Behind the load balancer: take the client IP from the trusted proxy's X-Forwarded-For (rate limits per real IP).
+  # The proxy MUST overwrite client-sent X-Forwarded-* headers (deployment course).
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Regex of OUR load balancer's addresses: only these may set X-Forwarded-For. Required: no value, no startup.
+      internal-proxies: ${SWIFTDROP_TRUSTED_PROXIES}
   servlet:
     session:
       cookie:

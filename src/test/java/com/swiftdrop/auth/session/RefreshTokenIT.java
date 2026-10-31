@@ -165,16 +165,14 @@ class RefreshTokenIT {
     }
 
     @Test
-    void aTemporarilyLockedAccountIsRefusedButItsSessionSurvives() throws Exception {
+    void aFailedPasswordLockDoesNotStopRefresh() throws Exception {
         String email = verifiedUser(RoleName.CUSTOMER);
         String token = login(email);
-        jdbc.update("UPDATE identity.users SET locked_until = now() + interval '1 hour' WHERE email = ?", email);
+        jdbc.update("UPDATE identity.users SET locked_until = now() + interval '15 minutes' WHERE email = ?", email);
 
-        refresh(token).andExpect(status().isUnauthorized());
-        assertThat(reasonOf(token)).isNull();   // a stranger's failed logins must not end the real session
-
-        jdbc.update("UPDATE identity.users SET locked_until = NULL WHERE email = ?", email);
+        // the lock guards password guessing only: a stranger's typos must not lock the real user out of their session
         refresh(token).andExpect(status().isOk());
+        assertThat(reasonOf(token)).isNull();
     }
 
     @Test

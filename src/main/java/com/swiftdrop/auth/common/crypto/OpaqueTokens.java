@@ -29,6 +29,13 @@ public final class OpaqueTokens {
         return BASE64_URL.encodeToString(bytes);
     }
 
+    /** Random identifier of {@code bytes} random bytes, base64url without padding (16 bytes = 22 characters). */
+    public static String randomBase64Url(int bytes) {
+        byte[] random = new byte[bytes];
+        RANDOM.nextBytes(random);
+        return BASE64_URL.encodeToString(random);
+    }
+
     public static String hash(String token) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));

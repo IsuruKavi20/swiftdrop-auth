@@ -40,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = SignupController.class)
 @Import({SecurityConfig.class, ProblemDetailsAuthenticationEntryPoint.class, ProblemDetailsAccessDeniedHandler.class,
         RequestIdFilter.class, RequestSizeLimitFilter.class, ResponseTimeFloor.class})
-@TestPropertySource(properties = "swiftdrop.web.anti-enumeration-min-duration=0ms")
+// Rate limits have their own tests (RateLimitFilterTest, RateLimitIT); here they would only get in the way
+@TestPropertySource(properties = {"swiftdrop.web.anti-enumeration-min-duration=0ms", "swiftdrop.rate-limit.enabled=false"})
 class SignupControllerTest {
 
     private static final String SIGNUP = ApiPaths.AUTH + "/signup";

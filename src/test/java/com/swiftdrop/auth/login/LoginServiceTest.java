@@ -87,6 +87,8 @@ class LoginServiceTest {
         assertThatThrownBy(() -> service.login("nobody@x.com", PASSWORD))
                 .isInstanceOf(InvalidCredentialsException.class);
         verify(encoder).matches(PASSWORD, DUMMY);   // same Argon2 cost as a real user: no timing difference
+        // the same UPDATE runs for unknown emails, against an id no account has: same timing, nothing stored
+        verify(recorder).recordFailedLogin(LoginService.NO_SUCH_USER, NOW);
     }
 
     @Test
@@ -117,6 +119,7 @@ class LoginServiceTest {
         assertThatThrownBy(() -> service.login("isuru@x.com", PASSWORD))
                 .isInstanceOf(InvalidCredentialsException.class);
         verify(tokens, never()).start(any());
+        verify(recorder).recordFailedLogin(USER_ID, NOW);   // counts towards the temporary lock
     }
 
     @Test

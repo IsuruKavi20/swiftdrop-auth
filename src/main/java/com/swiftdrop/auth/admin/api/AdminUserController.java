@@ -5,6 +5,7 @@ import com.swiftdrop.auth.admin.api.dto.AdminUserResponse;
 import com.swiftdrop.auth.common.web.ApiPaths;
 import com.swiftdrop.auth.security.RequirePermission;
 import com.swiftdrop.auth.user.RoleName;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -52,6 +53,11 @@ public class AdminUserController {
     }
 
     private static UUID callerId(Jwt caller) {
-        return UUID.fromString(caller.getSubject());
+        try {
+            return UUID.fromString(caller.getSubject());
+        } catch (IllegalArgumentException notAUser) {
+            // a merchant machine token (sub = mc_...) is not a person: 401, never a 500
+            throw new BadCredentialsException("Not a user token");
+        }
     }
 }

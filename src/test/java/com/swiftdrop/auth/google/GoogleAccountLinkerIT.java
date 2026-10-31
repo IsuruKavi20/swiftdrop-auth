@@ -114,6 +114,15 @@ class GoogleAccountLinkerIT {
     }
 
     @Test
+    void aFailedPasswordLockDoesNotBlockGoogleLogin() {
+        String sub = uniqueSub();
+        UUID id = linker.link(GoogleIdentity.of(sub, uniqueEmail(), true));
+        jdbc.update("UPDATE identity.users SET locked_until = now() + interval '15 minutes' WHERE id = ?", id);
+
+        assertThat(linker.link(GoogleIdentity.of(sub, uniqueEmail(), true))).isEqualTo(id);
+    }
+
+    @Test
     void accountAlreadyLinkedToAnotherGoogleAccountIsNotRelinked() {
         String email = uniqueEmail();
         linker.link(GoogleIdentity.of(uniqueSub(), email, true));

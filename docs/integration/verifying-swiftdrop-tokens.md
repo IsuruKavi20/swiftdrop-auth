@@ -71,9 +71,13 @@ public class SecurityConfig {
                 .jwsAlgorithm(SignatureAlgorithm.RS256)
                 .validateType(false)   // Spring Security 7.1.x name (some docs say validateTypes)
                 .build();
-        decoder.setJwtValidator(JwtValidators.createAtJwtValidator()   // typ at+jwt, iss, aud, client_id, exp
-                .issuer(issuer).audience(audience).clientId(clientId)
-                .build());
+        // client_id: our user apps (swiftdrop-web) OR a merchant's software (mc_ + 22 chars), nothing else
+        OAuth2TokenValidator<Jwt> knownClient = new JwtClaimValidator<String>("client_id",
+                id -> clientId.equals(id) || (id != null && id.matches("^mc_[A-Za-z0-9_-]{22}$")));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createAtJwtValidator()                     // typ at+jwt, iss, aud, exp, required claims
+                        .issuer(issuer).audience(audience).build(),
+                knownClient));
         return decoder;
     }
 
@@ -204,6 +208,26 @@ Login returns two tokens:
    verifier from sessionStorage.
 4. `#error=login_failed` or a `401 INVALID_LOGIN_CODE`: show "Google sign-in failed, please try again".
 Google users are normal SwiftDrop users: same tokens, same roles (from our database, never from Google).
+
+## 6e. Merchant systems (machine-to-machine tokens)
+An approved merchant's software gets tokens with the OAuth 2.0 **client credentials** grant:
+```bash
+curl -u "mc_xxxxxxxxxxxxxxxxxxxxxx:<client secret>" -d grant_type=client_credentials http://localhost:8080/oauth2/token
+# → {"access_token":"eyJ...","token_type":"Bearer","expires_in":900}   (no refresh token: just ask again)
+```
+Its token has **no user**:
+| Claim | Value |
+|---|---|
+| `sub`, `client_id` | `mc_…` (the merchant's API client) |
+| `merchant_id` | the merchant (UUID): **use this** to scope data to the merchant |
+| `roles` / `entitlements` | `["MERCHANT"]` / `merchant:api-access`, `parcel:create`, `parcel:read-own` |
+So in your code: `sub` is a UUID for people, `mc_…` for merchant machines. For merchant data, filter by
+`token.getClaimAsString("merchant_id")`, never by a value from the request. Merchant (people) accounts apply and get
+approved through the auth service (`POST /api/v1/merchants/application`, admin `POST /api/v1/admin/merchants/{id}/decision`).
+
+## 6f. Rate limits you may hit
+Public auth endpoints are limited per client IP (e.g. login 10/min, signup 5/min, `/oauth2/token` 30/min) and answer
+`429 RATE_LIMITED` with `Retry-After: <seconds>`. Wait that long; don't retry in a loop.
 
 ## 7. Key rotation: nothing to do
 When the auth service rotates, the new key appears in the JWKS and signs new tokens from the same moment; the old

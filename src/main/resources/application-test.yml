@@ -23,6 +23,9 @@ swiftdrop:
     resend-cooldown: 0s
   web:
     anti-enumeration-min-duration: 0ms
+  # Tests log in many times from 127.0.0.1; limits are tested on their own (RateLimitFilterTest, RateLimitIT)
+  rate-limit:
+    enabled: false
   security:
     # Tests never call the real Have I Been Pwned service
     breached-password-check:

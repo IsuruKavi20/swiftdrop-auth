@@ -46,10 +46,34 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     Optional<User> findWithRolesById(UUID id);
 
-    /** Direct UPDATE, no version check: parallel logins of one user must not fail each other. */
+    /** Direct UPDATE, no version check: parallel logins of one user must not fail each other. Clears any lock. */
     @Modifying
-    @Query("update User u set u.lastLoginAt = :now where u.id = :id")
+    @Query("update User u set u.lastLoginAt = :now, u.failedLoginCount = 0, u.lockedUntil = null, "
+            + "u.lastFailedLoginAt = null where u.id = :id")
     int updateLastLoginAt(@Param("id") UUID id, @Param("now") Instant now);
+
+    /**
+     * One wrong password, counted in ONE statement (parallel guesses can't lose a count). The SET expressions see
+     * the OLD values. 5 failures in a row lock for 1 minute, 10 for 5, 15 and more for 15 (deep dive 26).
+     * Two limits on abuse: failures DURING a lock are not counted (a stranger can't keep you locked forever by
+     * guessing every 15 minutes), and a failure after a quiet hour starts again from 1 (old typos fade away).
+     */
+    @Modifying
+    @Query("""
+            update User u set
+                u.failedLoginCount = case when u.lastFailedLoginAt is null or u.lastFailedLoginAt < :forgetBefore
+                    then 1 else u.failedLoginCount + 1 end,
+                u.lockedUntil = case
+                    when u.lastFailedLoginAt is null or u.lastFailedLoginAt < :forgetBefore then u.lockedUntil
+                    when u.failedLoginCount + 1 >= 15 then :lockLong
+                    when u.failedLoginCount + 1 >= 10 then :lockMedium
+                    when u.failedLoginCount + 1 >= 5 then :lockShort
+                    else u.lockedUntil end,
+                u.lastFailedLoginAt = :now
+            where u.id = :id and (u.lockedUntil is null or u.lockedUntil <= :now)""")
+    int recordFailedLogin(@Param("id") UUID id, @Param("now") Instant now, @Param("forgetBefore") Instant forgetBefore,
+                          @Param("lockShort") Instant lockShort, @Param("lockMedium") Instant lockMedium,
+                          @Param("lockLong") Instant lockLong);
 
     /** Compare-and-set: only if the hash is still the one we verified; bumps the version like a normal edit. */
     @Modifying

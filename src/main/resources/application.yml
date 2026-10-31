@@ -125,6 +125,22 @@ swiftdrop:
     # Key rotation overlap (see docs/integration): earlier public keys still accepted and published, e.g.
     # previous-keys: [{key-id: auth-2026-09, public-key-location: /run/secrets/jwt-2026-09.pub.pem}]
     previous-keys: []
+  # Per-IP limits on the public endpoints (deep dive 26). 429 + Retry-After when a bucket is empty.
+  rate-limit:
+    enabled: true
+    max-tracked-keys: 100000
+    rules:
+      - {name: login, method: POST, path: /api/v1/auth/login, per-minute: 10}
+      - {name: signup, method: POST, path: /api/v1/auth/signup, per-minute: 5}
+      - {name: resend, method: POST, path: /api/v1/auth/email-verification/resend, per-minute: 5}
+      - {name: verify, method: POST, path: /api/v1/auth/email-verification, per-minute: 20}
+      - {name: refresh, method: POST, path: /api/v1/auth/refresh, per-minute: 30}
+      - {name: logout, method: POST, path: /api/v1/auth/logout, per-minute: 30}
+      - {name: google-start, method: GET, path: /oauth2/authorization/google, per-minute: 10}
+      - {name: google-exchange, method: POST, path: /api/v1/auth/google/exchange, per-minute: 10}
+      - {name: merchant-token, method: POST, path: /oauth2/token, per-minute: 30}
+      - {name: merchant-apply, method: POST, path: /api/v1/merchants/application, per-minute: 5}
+      - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
   # Google login: the OAuth client from Google Cloud Console (env vars / .env). Empty = Google login off (dev only).
   google:
     client-id: ${GOOGLE_CLIENT_ID:}

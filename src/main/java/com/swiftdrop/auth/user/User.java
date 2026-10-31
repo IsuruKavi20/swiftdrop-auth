@@ -50,6 +50,9 @@ public class User {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    @Column(name = "last_failed_login_at")
+    private Instant lastFailedLoginAt;
+
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
@@ -96,7 +99,15 @@ public class User {
         return roles.stream().anyMatch(role -> role.getName() == name);
     }
 
-    /** Active and not temporarily locked: may hold a session (email verification is checked separately). */
+    /**
+     * Account status allows use (not DISABLED/LOCKED by an admin). The temporary failed-password lock is NOT part
+     * of this: it only blocks password logins, so a stranger's typos can't block Google login, refresh or merchant APIs.
+     */
+    public boolean isUsable() {
+        return status == UserStatus.ACTIVE;
+    }
+
+    /** Usable AND not in a temporary failed-password lock: the check for PASSWORD login only. */
     public boolean isActiveAt(Instant now) {
         boolean temporarilyLocked = lockedUntil != null && now.isBefore(lockedUntil);
         return status == UserStatus.ACTIVE && !temporarilyLocked;

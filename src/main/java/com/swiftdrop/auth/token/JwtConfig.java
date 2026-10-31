@@ -1,5 +1,10 @@
 package com.swiftdrop.auth.token;
 
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+import java.util.regex.Pattern;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -32,6 +37,8 @@ import java.util.List;
  */
 @Configuration
 class JwtConfig {
+
+    private static final Pattern MERCHANT_CLIENT_ID = Pattern.compile("^mc_[A-Za-z0-9_-]{22}$");
 
     private static final Logger log = LoggerFactory.getLogger(JwtConfig.class);
     private static final JOSEObjectType ACCESS_TOKEN_TYPE = new JOSEObjectType("at+jwt");
@@ -96,11 +103,16 @@ class JwtConfig {
                 .jwtProcessorCustomizer(processor -> processor.setJWSTypeVerifier(
                         new DefaultJOSEObjectTypeVerifier<>(ACCESS_TOKEN_TYPE)))
                 .build();
-        decoder.setJwtValidator(JwtValidators.createAtJwtValidator()
-                .issuer(settings.issuer().toString())
-                .audience(settings.audience())
-                .clientId(settings.clientId())
-                .build());
+        // client_id: our user apps (swiftdrop-web) OR a merchant's software (mc_...), nothing else
+        OAuth2TokenValidator<Jwt> knownClient = new JwtClaimValidator<String>("client_id",
+                clientId -> settings.clientId().equals(clientId)
+                        || (clientId != null && MERCHANT_CLIENT_ID.matcher(clientId).matches()));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createAtJwtValidator()
+                        .issuer(settings.issuer().toString())
+                        .audience(settings.audience())
+                        .build(),
+                knownClient));
         return decoder;
     }
 }

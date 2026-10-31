@@ -65,6 +65,10 @@ public class RoleAdministration {
     /** Idempotent: revoking a role the user does not have changes nothing. */
     @Transactional
     public UserView revoke(UUID actorId, UUID userId, RoleName role) {
+        if (role == RoleName.MERCHANT) {
+            // Merchants are suspended through merchant administration, which also stops their API clients
+            throw new AdminException(ErrorCode.ROLE_NOT_ASSIGNABLE);
+        }
         if (role == RoleName.ADMIN && actorId.equals(userId)) {
             // Prevents an admin from locking everyone (including themselves) out by accident
             throw new AdminException(ErrorCode.CANNOT_REMOVE_OWN_ADMIN);

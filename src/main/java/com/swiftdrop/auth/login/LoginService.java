@@ -26,6 +26,8 @@ public class LoginService {
 
     // A malformed email still does one lookup, so it costs the same time as a well-formed unknown one
     private static final String NO_SUCH_EMAIL = "no-such-account@invalid.invalid";
+    // Failures for unknown emails run the same UPDATE against an id no account has (0 rows): same timing
+    static final UUID NO_SUCH_USER = new UUID(0, 0);
 
     private final UserRepository users;
     private final PasswordEncoder encoder;
@@ -59,6 +61,9 @@ public class LoginService {
         });
 
         Instant now = clock.instant();
+        if (!correctPassword) {
+            recorder.recordFailedLogin(account.map(User::getId).orElse(NO_SUCH_USER), now);
+        }
         // Locked and disabled accounts are hidden behind the generic answer (OWASP)
         if (!correctPassword || !account.get().isActiveAt(now)) {
             throw new InvalidCredentialsException();

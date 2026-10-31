@@ -61,7 +61,7 @@ public class HandoffCodes {
             throw new InvalidLoginCodeException();
         }
         User user = users.findWithRolesById(code.getUserId())
-                .filter(found -> found.isActiveAt(now) && found.isEmailVerified())
+                .filter(found -> found.isUsable() && found.isEmailVerified())
                 .orElseThrow(InvalidLoginCodeException::new);
         return sessions.start(user);
     }
