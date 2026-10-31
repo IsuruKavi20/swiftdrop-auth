@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AnnotationTemplateExpressionDefaults;
@@ -44,6 +45,8 @@ public class SecurityConfig {
         http
                 // Bearer-token API, not cookie sessions, so CSRF does not apply here (plan section 16)
                 .csrf(csrf -> csrf.disable())
+                // Browser calls from our allow-listed frontends only (CorsConfig); preflights are answered here
+                .cors(Customizer.withDefaults())
                 // Never leak URLs (which may carry tokens) to other sites through the Referer header
                 .headers(headers -> headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER)))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

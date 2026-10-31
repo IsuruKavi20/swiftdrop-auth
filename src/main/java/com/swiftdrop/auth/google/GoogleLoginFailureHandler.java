@@ -17,6 +17,7 @@ import java.io.IOException;
 public class GoogleLoginFailureHandler implements AuthenticationFailureHandler {
 
     static final String ERROR_FRAGMENT = "error=login_failed";
+    private static final int MAX_DETAIL_LENGTH = 200;
     private static final Logger log = LoggerFactory.getLogger(GoogleLoginFailureHandler.class);
 
     private final FrontendProperties frontend;
@@ -29,10 +30,23 @@ public class GoogleLoginFailureHandler implements AuthenticationFailureHandler {
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception) throws IOException {
         GoogleLoginSuccessHandler.endLoginSession(request);
-        // The OAuth error code (e.g. access_denied, authorization_request_not_found) is safe to log: no personal data
-        String reason = exception instanceof OAuth2AuthenticationException oauth
-                ? oauth.getError().getErrorCode() : exception.getClass().getSimpleName();
-        log.warn("Google login failed: reason={}", reason);
+        // The OAuth error code and Google's fixed technical description (e.g. "Missing parameter: code_verifier")
+        // carry no personal data; the description is shortened and stripped of line breaks (no log injection)
+        String reason = exception.getClass().getSimpleName();
+        String detail = "";
+        if (exception instanceof OAuth2AuthenticationException oauth) {
+            reason = oauth.getError().getErrorCode();
+            detail = safeForLog(oauth.getError().getDescription());
+        }
+        log.warn("Google login failed: reason={} detail={}", reason, detail);
         response.sendRedirect(frontend.link(GoogleLoginSuccessHandler.CALLBACK_PATH + "#" + ERROR_FRAGMENT).toString());
+    }
+
+    private static String safeForLog(String text) {
+        if (text == null) {
+            return "";
+        }
+        String oneLine = text.replaceAll("[\\r\\n\\t]", " ");
+        return oneLine.length() > MAX_DETAIL_LENGTH ? oneLine.substring(0, MAX_DETAIL_LENGTH) : oneLine;
     }
 }

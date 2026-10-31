@@ -12,6 +12,19 @@ Client ──Authorization: Bearer <access token>──► your service
                                                     ▼ 3. user ID = "sub", roles = "roles" → ROLE_COURIER, ...
 ```
 
+## 0. Microservices or one monolith: same setup
+Whether SwiftDrop's other modules are separate services or one **monolith**, each application that receives requests
+does the same thing: verify our tokens with our public keys (sections 2–5). For a monolith that is one application.
+- Do **not** add a users/passwords table, login logic or role management to it: those live in the auth service.
+- Extra per-user data (courier vehicle, customer addresses) goes in its own table **keyed by our user id (`sub`)**.
+- The frontend calls the auth service for signup/login/refresh/Google, and sends the access token to the monolith.
+- Not Spring? JWT + JWKS is a standard: use your platform's JOSE library (e.g. `jose` for Node.js,
+  `Microsoft.IdentityModel.Tokens` for .NET) with the same checks (RS256 only, typ at+jwt, iss, aud, client_id, exp).
+
+**Ports and browser access (dev):** the auth service runs on **9000** (your backend keeps 8080). Browser code on
+`http://localhost:5173` (Vite) and `http://localhost:3000` may call it directly (CORS allow-list). In production the
+allowed frontend origins are set with `SWIFTDROP_CORS_ALLOWED_ORIGINS`.
+
 ## 1. What a SwiftDrop access token contains
 | Part | Value |
 |---|---|
@@ -19,7 +32,7 @@ Client ──Authorization: Bearer <access token>──► your service
 | `sub` | the user's ID (UUID). **Use this as the user identifier.** |
 | `roles` | e.g. `["COURIER"]` (CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN) |
 | `entitlements` | the permissions those roles grant, e.g. `["delivery:read-own","delivery:update-status"]` (table below) |
-| `iss` | the auth service URL (dev: `http://localhost:8080`) |
+| `iss` | the auth service URL (dev: `http://localhost:9000`) |
 | `aud` | `swiftdrop-api` |
 | `client_id` | `swiftdrop-web` |
 | `exp` / `iat` / `jti` | expiry (15 min after issue), issue time, unique token ID |
@@ -49,8 +62,8 @@ mapping changes, your code does not. Role changes apply from the user's next log
 ```yaml
 swiftdrop:
   auth:
-    issuer: http://localhost:8080                                   # must match the token's "iss" exactly
-    jwk-set-uri: http://localhost:8080/.well-known/jwks.json
+    issuer: http://localhost:9000                                   # must match the token's "iss" exactly
+    jwk-set-uri: http://localhost:9000/.well-known/jwks.json
     audience: swiftdrop-api
     client-id: swiftdrop-web
 ```
@@ -148,7 +161,7 @@ log in at `POST /api/v1/auth/login`. A dev test-token endpoint is coming (Step 9
 ## 6b. Getting a real token instantly (development only)
 Run the auth service locally (`docker compose up -d`, then `.\mvnw spring-boot:run`) and ask for any role:
 ```bash
-curl -X POST http://localhost:8080/api/v1/dev/test-tokens \
+curl -X POST http://localhost:9000/api/v1/dev/test-tokens \
      -H "Content-Type: application/json" \
      -d '{"roles":["COURIER"],"userId":"11111111-1111-1111-1111-111111111111"}'
 # → {"access_token":"eyJ...","token_type":"Bearer","expires_in":900}
@@ -195,7 +208,7 @@ Login returns two tokens:
    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
    const challenge = btoa(String.fromCharCode(...hash)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
    sessionStorage.setItem("google_verifier", verifier);
-   location.href = "http://localhost:8080/oauth2/authorization/google?code_challenge=" + challenge;
+   location.href = "http://localhost:9000/oauth2/authorization/google?code_challenge=" + challenge;
    ```
    (full page navigation, not fetch/XHR)
 2. After Google, the user lands on **your** page `/auth/callback` with either
@@ -212,7 +225,7 @@ Google users are normal SwiftDrop users: same tokens, same roles (from our datab
 ## 6e. Merchant systems (machine-to-machine tokens)
 An approved merchant's software gets tokens with the OAuth 2.0 **client credentials** grant:
 ```bash
-curl -u "mc_xxxxxxxxxxxxxxxxxxxxxx:<client secret>" -d grant_type=client_credentials http://localhost:8080/oauth2/token
+curl -u "mc_xxxxxxxxxxxxxxxxxxxxxx:<client secret>" -d grant_type=client_credentials http://localhost:9000/oauth2/token
 # → {"access_token":"eyJ...","token_type":"Bearer","expires_in":900}   (no refresh token: just ask again)
 ```
 Its token has **no user**:

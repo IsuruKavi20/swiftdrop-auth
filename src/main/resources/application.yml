@@ -61,6 +61,8 @@ spring:
     clean-disabled: true
 
 server:
+  # 9000: the team's backend uses Spring's default 8080 on the same machine
+  port: 9000
   # The only HTTP session is Google login's 5-minute dance (state, PKCE verifier, nonce, browser challenge).
   # SameSite=Lax (not Strict): the cookie must come back on Google's top-level redirect to our callback.
   servlet:
@@ -125,6 +127,9 @@ swiftdrop:
     # Key rotation overlap (see docs/integration): earlier public keys still accepted and published, e.g.
     # previous-keys: [{key-id: auth-2026-09, public-key-location: /run/secrets/jwt-2026-09.pub.pem}]
     previous-keys: []
+  # Browser access (CORS): exact frontend origins, comma-separated in the env var. Empty = none (fail closed).
+  cors:
+    allowed-origins: ${SWIFTDROP_CORS_ALLOWED_ORIGINS:}
   # Per-IP limits on the public endpoints (deep dive 26). 429 + Retry-After when a bucket is empty.
   rate-limit:
     enabled: true
