@@ -17,6 +17,10 @@ corsAllowedOrigins: ""
 # Regex of the ingress controller's pod addresses: only they may set X-Forwarded-For (real client IP for rate limits)
 trustedProxies: ""
 
+# The first admin (an existing, verified account). Remove once a second admin exists, or a deliberate revoke of
+# this account's ADMIN role would be undone at the next restart.
+bootstrapAdminEmail: ""
+
 # Created by you with kubectl, never stored in git
 secrets:
   # keys: db-admin-password, db-migrator-password, db-app-password, redis-password,

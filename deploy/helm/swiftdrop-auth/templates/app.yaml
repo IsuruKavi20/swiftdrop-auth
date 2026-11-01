@@ -35,6 +35,10 @@ data:
   SWIFTDROP_FRONTEND_BASE_URL: {{ required "frontendBaseUrl is required" .Values.frontendBaseUrl | quote }}
   SWIFTDROP_CORS_ALLOWED_ORIGINS: {{ .Values.corsAllowedOrigins | quote }}
   SWIFTDROP_TRUSTED_PROXIES: {{ required "trustedProxies is required" .Values.trustedProxies | quote }}
+  {{- with .Values.bootstrapAdminEmail }}
+  # The first admin: granted at startup only if this account exists AND its email is verified (lesson 9)
+  SWIFTDROP_BOOTSTRAP_ADMIN_EMAIL: {{ . | quote }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Service
