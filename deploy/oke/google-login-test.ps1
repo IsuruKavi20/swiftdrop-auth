@@ -27,9 +27,16 @@ Write-Host 'Log in. Then the browser shows "can''t reach this page" at localhost
 Write-Host 'Copy the WHOLE address from the address bar (it contains #code=...).'
 $pasted = Read-Host "`nPaste the address here, then press Enter (within 60 seconds)"
 
+$pasted = $pasted.Trim()
 if ($pasted -match 'error=') { throw "The service reported a failed Google login: $pasted" }
-if ($pasted -notmatch 'code=([A-Za-z0-9_-]+)') { throw 'No code=... found in what you pasted.' }
-$code = $Matches[1]
+# Accept the whole address (…#code=XYZ) or just the code itself
+if ($pasted -match 'code=([A-Za-z0-9_-]+)') {
+    $code = $Matches[1]
+} elseif ($pasted -match '^[A-Za-z0-9_-]{20,64}$') {
+    $code = $pasted
+} else {
+    throw 'No code found in what you pasted.'
+}
 
 $body = Join-Path $env:TEMP 'swiftdrop-exchange.json'
 try {
@@ -38,10 +45,15 @@ try {
 } finally {
     Remove-Item $body -ErrorAction SilentlyContinue
 }
+# Standard OAuth field names (RFC 6749): access_token, refresh_token. Never print the response itself:
+# on success it contains live tokens
 $json = $response | ConvertFrom-Json
-if (-not $json.accessToken) { throw "Exchange failed: $response" }
+if (-not $json.access_token) {
+    $problem = if ($json.code) { "$($json.status) $($json.code): $($json.detail)" } else { 'unexpected response (not shown)' }
+    throw "Exchange failed: $problem"
+}
 
-$claims = ConvertFrom-Base64Url ($json.accessToken.Split('.')[1]) | ConvertFrom-Json
+$claims = ConvertFrom-Base64Url ($json.access_token.Split('.')[1]) | ConvertFrom-Json
 Write-Host "`nGoogle login worked. Access token (summary, token itself not shown):" -ForegroundColor Green
 [pscustomobject]@{
     issuer       = $claims.iss
@@ -50,5 +62,16 @@ Write-Host "`nGoogle login worked. Access token (summary, token itself not shown
     roles        = ($claims.roles -join ', ')
     audience     = ($claims.aud -join ', ')
     expiresAt    = [DateTimeOffset]::FromUnixTimeSeconds($claims.exp).LocalDateTime
-    refreshToken = if ($json.refreshToken) { 'received (not shown)' } else { 'none' }
+    entitlements = ($claims.entitlements -join ', ')
+    refreshToken = if ($json.refresh_token) { 'received (not shown)' } else { 'none' }
 } | Format-List
+
+# A test session should not stay alive: end it right away (logout revokes the refresh token)
+$logout = Join-Path $env:TEMP 'swiftdrop-logout.json'
+try {
+    @{ refresh_token = $json.refresh_token } | ConvertTo-Json | Set-Content -Encoding ascii $logout
+    $status = curl.exe -s -o NUL -w '%{http_code}' -H 'Content-Type: application/json' --data-binary "@$logout" "$BaseUrl/api/v1/auth/logout"
+    Write-Host "Test session logged out (HTTP $status)."
+} finally {
+    Remove-Item $logout -ErrorAction SilentlyContinue
+}
