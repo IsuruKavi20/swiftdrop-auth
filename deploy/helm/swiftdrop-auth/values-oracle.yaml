@@ -1,7 +1,7 @@
 # Oracle OKE (lesson 17): helm upgrade --install auth deploy/helm/swiftdrop-auth -n swiftdrop -f deploy/helm/swiftdrop-auth/values-oracle.yaml
 image:
   repository: hyd.ocir.io/ax8lt6cfwnh8/swiftdrop/auth
-  tag: 1.1.0-bc6476f
+  tag: 1.1.0-7d92e55
   # The registry is private: the cluster logs in with this Secret (created with kubectl, never in git)
   pullSecrets: [{ name: ocir-pull }]
 
