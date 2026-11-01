@@ -1,13 +1,15 @@
 #!/bin/sh
 # Runs once, as the superuser, when the Postgres volume is first created.
 # Creates a schema-owner role for Flyway and a DML-only role for the application (least privilege).
-# DEV ONLY: passwords arrive as container env vars. Production uses Docker secrets / a vault.
+# Passwords arrive as environment variables (docker-compose: .env; Kubernetes: a Secret). psql reads them
+# itself with \getenv, so they never appear on a command line (visible to "ps").
+# Runs only when the data volume is new: to change a password later, use ALTER ROLE ... PASSWORD (lesson 17).
 set -eu
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-    -v migrator_password="$DB_MIGRATOR_PASSWORD" \
-    -v app_password="$DB_APP_PASSWORD" \
-    -v db_name="$POSTGRES_DB" <<'EOSQL'
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'EOSQL'
+\getenv migrator_password DB_MIGRATOR_PASSWORD
+\getenv app_password DB_APP_PASSWORD
+\getenv db_name POSTGRES_DB
 CREATE ROLE identity_migrator LOGIN PASSWORD :'migrator_password';
 CREATE ROLE identity_app LOGIN PASSWORD :'app_password';
 ALTER ROLE identity_migrator SET search_path = identity;

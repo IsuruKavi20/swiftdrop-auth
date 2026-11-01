@@ -66,6 +66,9 @@ class GoogleLoginFlowIT {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private org.springframework.session.SessionRepository<? extends org.springframework.session.Session> sessions;
+
     @Test
     void startingGoogleLoginRedirectsToGoogleWithPkceStateAndNonce() throws Exception {
         MvcResult result = mockMvc.perform(get("/oauth2/authorization/google").param("code_challenge", CHALLENGE))
@@ -77,7 +80,13 @@ class GoogleLoginFlowIT {
         assertThat(location).contains("code_challenge=", "code_challenge_method=S256", "state=", "nonce=",
                 "scope=openid%20email%20profile");
         assertThat(location).doesNotContain(CHALLENGE);   // OUR browser binding never goes to Google
-        assertThat(result.getRequest().getSession().getAttribute(GoogleLoginSuccessHandler.CHALLENGE_ATTRIBUTE))
+        // The session lives in Redis (Spring Session): read it back the way any instance would
+        String cookie = result.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(header -> header.startsWith("SWIFTDROP_LOGIN=")).findFirst().orElseThrow();
+        String sessionId = new String(java.util.Base64.getDecoder().decode(
+                cookie.substring("SWIFTDROP_LOGIN=".length(), cookie.indexOf(';'))), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(cookie).contains("HttpOnly", "SameSite=Lax").doesNotContain("Secure");   // Secure: prod only (https)
+        assertThat((Object) sessions.findById(sessionId).getAttribute(GoogleLoginSuccessHandler.CHALLENGE_ATTRIBUTE))
                 .isEqualTo(CHALLENGE);
     }
 
