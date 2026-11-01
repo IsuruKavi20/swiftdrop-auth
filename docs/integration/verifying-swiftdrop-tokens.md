@@ -32,7 +32,7 @@ allowed frontend origins are set with `SWIFTDROP_CORS_ALLOWED_ORIGINS`.
 | `sub` | the user's ID (UUID). **Use this as the user identifier.** |
 | `roles` | e.g. `["COURIER"]` (CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN) |
 | `entitlements` | the permissions those roles grant, e.g. `["delivery:read-own","delivery:update-status"]` (table below) |
-| `iss` | the auth service URL (dev: `http://localhost:9000`) |
+| `iss` | the auth service URL (production: `https://auth.getswiftdrop.me`, local dev: `http://localhost:9000`) |
 | `aud` | `swiftdrop-api` |
 | `client_id` | `swiftdrop-web` |
 | `exp` / `iat` / `jti` | expiry (15 min after issue), issue time, unique token ID |
@@ -67,7 +67,9 @@ swiftdrop:
     audience: swiftdrop-api
     client-id: swiftdrop-web
 ```
-(Production: the real auth service URL, e.g. `https://auth.swiftdrop.dev`.)
+(Production: `https://auth.getswiftdrop.me`, with JWKS at `https://auth.getswiftdrop.me/.well-known/jwks.json`.
+Use `JwtValidators.createAtJwtValidator()`: Spring Security 7's default validator only accepts `typ: JWT` and rejects our
+`at+jwt` access tokens. A complete, tested example: the SwiftDrop repo, `backend/.../security/SecurityConfig.java`.)
 
 ## 4. Security configuration (copy into your service)
 ```java
