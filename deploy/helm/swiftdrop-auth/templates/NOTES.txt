@@ -1,0 +1,12 @@
+SwiftDrop auth is deploying as "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Watch it start (both copies must reach 1/1 READY):
+  kubectl get pods -n {{ .Release.Namespace }} -w
+
+Then:
+  {{ include "auth.publicUrl" . }}/.well-known/jwks.json
+{{- if .Values.mailpit.enabled }}
+
+Mail inbox:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ .Release.Name }}-mailpit 8025:8025   ->  http://localhost:8025
+{{- end }}

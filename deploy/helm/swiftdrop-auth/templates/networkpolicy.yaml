@@ -1,0 +1,97 @@
+{{- $name := include "auth.name" . }}
+# A firewall between pods. Step 1: in this namespace NOTHING may come in or go out (default deny).
+# Step 2: open exactly what is needed, in both directions:
+#   Traefik  -> app :9000
+#   app      -> Postgres :5432, Redis :6379, Mailpit :1025, DNS, and the internet on 443/587
+#              (Google login, breached-password check, real SMTP) — but never the cloud metadata
+#              address 169.254.169.254 or private networks (stops SSRF from reaching internal services)
+#   Postgres / Redis / Mailpit -> nothing (they never start connections)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-default-deny
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-app
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "auth.selector" (list . "app") | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ .Values.ingress.controllerNamespace }} }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+      ports:
+        - { port: 9000, protocol: TCP }
+  egress:
+    # DNS (CoreDNS in kube-system)
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    {{- range $component, $port := dict "postgres" 5432 "redis" 6379 "mailpit" 1025 }}
+    {{- if (index $.Values $component).enabled }}
+    - to:
+        - podSelector:
+            matchLabels: {{- include "auth.selector" (list $ $component) | nindent 14 }}
+      ports:
+        - { port: {{ $port }}, protocol: TCP }
+    {{- end }}
+    {{- end }}
+    # The public internet only (https + SMTP submission)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "100.64.0.0/10"]
+      ports:
+        - { port: 443, protocol: TCP }
+        - { port: 587, protocol: TCP }
+---
+# Let's Encrypt proves domain ownership through a short-lived cert-manager "solver" pod in this namespace:
+# only Traefik may reach it (port 8089), and only while a certificate is being issued
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-acme-solver
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { acme.cert-manager.io/http01-solver: "true" }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ .Values.ingress.controllerNamespace }} }
+      ports:
+        - { port: 8089, protocol: TCP }
+{{- range $component, $port := dict "postgres" 5432 "redis" 6379 "mailpit" 1025 }}
+{{- if (index $.Values $component).enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-{{ $component }}
+  labels: {{- include "auth.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "auth.selector" (list $ $component) | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "auth.selector" (list $ "app") | nindent 14 }}
+      ports:
+        - { port: {{ $port }}, protocol: TCP }
+  egress: []   # never starts a connection
+{{- end }}
+{{- end }}

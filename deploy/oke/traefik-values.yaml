@@ -1,0 +1,43 @@
+# Traefik (the ingress controller) on Oracle OKE (lesson 17).
+# Install: helm upgrade --install traefik traefik/traefik --version 42.2.0 -n traefik --create-namespace -f deploy/oke/traefik-values.yaml
+#
+# Oracle creates a public NETWORK load balancer for this Service (Always Free: flexible network load balancers).
+# A network load balancer passes the connection through unchanged, so Traefik sees the REAL client IP
+# (externalTrafficPolicy: Local). That matters: our rate limits are per client IP; behind a proxy that hides it,
+# every user would share one bucket.
+deployment:
+  replicas: 2              # the front door must not be a single point of failure either
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: traefik
+service:
+  type: LoadBalancer
+  spec:
+    externalTrafficPolicy: Local
+  annotations:
+    oci.oraclecloud.com/load-balancer-type: "nlb"
+    oci-network-load-balancer.oraclecloud.com/security-list-management-mode: "All"
+ports:
+  web:
+    # Plain http only answers with a redirect to https (and serves Let's Encrypt's http-01 challenge first)
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+providers:
+  kubernetesIngress:
+    enabled: true
+  kubernetesCRD:
+    enabled: true
+ingressClass:
+  enabled: true
+  isDefaultClass: true

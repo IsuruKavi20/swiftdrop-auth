@@ -1,0 +1,6 @@
+apiVersion: v2
+name: swiftdrop-auth
+description: SwiftDrop identity, access and auth service, with its own Postgres, Redis and (optional) Mailpit
+type: application
+version: 0.1.0
+appVersion: "1.1.0"

@@ -1,0 +1,51 @@
+{{- $name := include "auth.name" . }}
+# The front door: https only, HSTS, then the "auth" Service (both copies). Standard Kubernetes Ingress;
+# the controller is Traefik (ingress-nginx was retired by the Kubernetes project in 2026).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $name }}-security-headers
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  headers:
+    stsSeconds: 31536000           # browsers use https only for a year
+    stsIncludeSubdomains: true     # (not "preload": that is a near-permanent promise for the whole domain)
+    contentTypeNosniff: true       # browsers must not guess file types
+    frameDeny: true                # nobody may show our pages inside their frames (clickjacking)
+---
+# Old, weak TLS versions refused; the certificate must match the requested name (no default-cert fallback)
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: {{ $name }}-tls
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  minVersion: VersionTLS12
+  sniStrict: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.options: {{ .Release.Namespace }}-{{ $name }}-tls@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Namespace }}-{{ $name }}-security-headers@kubernetescrd
+    {{- if not .Values.ingress.tls.internalCa }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.clusterIssuer }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts: [{{ .Values.publicHost | quote }}]
+      secretName: {{ $name }}-ingress-tls
+  rules:
+    - host: {{ .Values.publicHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ $name }}, port: { name: http } }
