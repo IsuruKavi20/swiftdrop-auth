@@ -48,6 +48,7 @@ mail:
   # Ignored when mailpit.enabled (then mail goes to the in-cluster Mailpit over STARTTLS)
   host: ""
   port: 587
+  from: ""                # e.g. no-reply@<your-domain>; "" = the app's default
 
 postgres:
   enabled: true

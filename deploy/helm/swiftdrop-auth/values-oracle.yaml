@@ -24,6 +24,11 @@ postgres:
   storageClass: oci-bv-encrypted
   storage: 50Gi           # Oracle's minimum block volume size (free within the 200 GB Always Free storage)
 
-# No real SMTP account yet: the in-cluster Mailpit (STARTTLS + password) catches the emails. Swap for Brevo later.
+# Real email through Brevo (free plan). getswiftdrop.me is authenticated there (DKIM + DMARC DNS records), so
+# Gmail etc. trust our mail. The SMTP login and key live in the Secret (mail-username / mail-password).
+mail:
+  host: smtp-relay.brevo.com
+  port: 587
+  from: no-reply@getswiftdrop.me
 mailpit:
-  enabled: true
+  enabled: false

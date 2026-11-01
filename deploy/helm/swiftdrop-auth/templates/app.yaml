@@ -25,6 +25,10 @@ data:
   MAIL_HOST: {{ required "mail.host is required without mailpit" .Values.mail.host | quote }}
   MAIL_PORT: {{ .Values.mail.port | quote }}
   {{- end }}
+  {{- with .Values.mail.from }}
+  # The sender address: must be on a domain the mail provider has verified (DKIM), or mail lands in spam
+  SWIFTDROP_MAIL_FROM: {{ . | quote }}
+  {{- end }}
   SWIFTDROP_JWT_ISSUER: {{ $publicUrl | quote }}
   SWIFTDROP_PUBLIC_BASE_URL: {{ $publicUrl | quote }}
   SWIFTDROP_JWT_PRIVATE_KEY_LOCATION: /etc/swiftdrop/jwt/signing-key.pem
