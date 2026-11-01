@@ -87,4 +87,4 @@ helm upgrade --install auth deploy/helm/swiftdrop-auth -n $Namespace `
 Step 'Done'
 kubectl get pods -n $Namespace -o wide
 kubectl get certificate -n $Namespace
-Write-Host "`nTry: https://auth.144.24.131.248.nip.io/.well-known/jwks.json" -ForegroundColor Green
+Write-Host "`nTry: https://auth.getswiftdrop.me/.well-known/jwks.json" -ForegroundColor Green

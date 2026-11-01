@@ -13,13 +13,17 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 class RateLimitStoreConfig {
 
-    // While disconnected, Redis commands fail at once instead of queueing up and each waiting for a timeout
+    // While disconnected, Redis commands fail at once instead of queueing up and each waiting for a timeout.
+    // Changes Spring Boot's options instead of replacing them: they carry the TLS trust (our internal CA)
     @Bean
     LettuceClientConfigurationBuilderCustomizer failFastWhileRedisIsDown() {
-        return builder -> builder.clientOptions(ClientOptions.builder()
-                .autoReconnect(true)
-                .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)
-                .build());
+        return builder -> {
+            ClientOptions current = builder.build().getClientOptions().orElseGet(ClientOptions::create);
+            builder.clientOptions(current.mutate()
+                    .autoReconnect(true)
+                    .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)
+                    .build());
+        };
     }
 
     @Bean

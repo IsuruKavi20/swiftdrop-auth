@@ -5,9 +5,9 @@ image:
   # The registry is private: the cluster logs in with this Secret (created with kubectl, never in git)
   pullSecrets: [{ name: ocir-pull }]
 
-# Until we have our own domain: nip.io turns "auth.<IP>.nip.io" into that IP, so Let's Encrypt can issue a real,
-# browser-trusted certificate for it. With a domain later, only this line changes (plus the Google redirect URI).
-publicHost: auth.144.24.131.248.nip.io
+# Our domain (Namecheap, GitHub Student Pack): DNS A record auth -> 144.24.131.248 (the network load balancer).
+# This one line sets the issuer in every token, the Google redirect URI, and the Let's Encrypt certificate name.
+publicHost: auth.getswiftdrop.me
 frontendBaseUrl: http://localhost:5173
 corsAllowedOrigins: http://localhost:5173
 # OKE here uses VCN-native pod networking: Traefik's pods get addresses from the node subnet 10.0.10.0/24,
