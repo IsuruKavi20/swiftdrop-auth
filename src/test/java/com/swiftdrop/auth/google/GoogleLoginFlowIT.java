@@ -125,6 +125,25 @@ class GoogleLoginFlowIT {
     }
 
     @Test
+    void aPhotoOnAnUntrustedHostIsDroppedButTheLoginWorks() throws Exception {
+        String email = uniqueEmail();
+        OidcIdToken idToken = new OidcIdToken("id-token", Instant.now(), Instant.now().plusSeconds(60), Map.of(
+                "iss", "https://accounts.google.com", "sub", uniqueSub(), "email", email, "email_verified", true,
+                "name", "Isuru Kavinda", "picture", "https://tracker.example/pixel.png"));
+        DefaultOidcUser google = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("OIDC_USER")), idToken);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        successHandler.onAuthenticationSuccess(loginRequest(), response,
+                new OAuth2AuthenticationToken(google, google.getAuthorities(), "google"));
+
+        assertThat(URI.create(response.getRedirectedUrl()).getFragment()).startsWith("code=");
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT name, picture_url FROM identity.users WHERE email = ?", email);
+        assertThat(row).containsEntry("name", "Isuru Kavinda");
+        assertThat(row.get("picture_url")).isNull();
+    }
+
+    @Test
     void refusedGoogleAccountIsSentToTheFrontendWithAGenericError() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 

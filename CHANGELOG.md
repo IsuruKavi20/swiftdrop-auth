@@ -14,6 +14,10 @@ versions: [Semantic Versioning](https://semver.org/).
   Connect names; `name` omitted when the account has none). Refreshed tokens carry the current values. Merchant
   (client-credentials) and dev test tokens carry none. Picture, phone and address are never put in a token.
 
+- **My profile API** (identity step 3a): `GET /api/v1/me/profile` and `PATCH /api/v1/me/profile` (JSON Merge
+  Patch; `If-Match` required: 428 without, 412 when stale). Profile photos only from trusted image hosts
+  (`swiftdrop.profile.picture-hosts`, default `.googleusercontent.com`); Google photos from other hosts are dropped.
+
 ### Changed
 - Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and
   the claims are for display/prefill (up to 15 minutes old).

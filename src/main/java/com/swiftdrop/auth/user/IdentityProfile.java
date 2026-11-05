@@ -43,6 +43,36 @@ public final class IdentityProfile {
         return new IdentityProfile(name, null, null, null, null);
     }
 
+    /** What the user edited themselves: every value is already validated (strict checks below). */
+    public static IdentityProfile ofUser(PersonName name, PersonName givenName, PersonName familyName,
+                                         String pictureUrl, String locale) {
+        return new IdentityProfile(name, givenName, familyName, pictureUrl, locale);
+    }
+
+    /** User input: a bad picture URL is an error the user must fix (provider data is dropped instead). */
+    public static String requireSafePictureUrl(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String safe = safePictureUrl(raw);
+        if (safe == null) {
+            throw new InvalidProfileException("picture", "HttpsUrl");
+        }
+        return safe;
+    }
+
+    /** User input: a bad language tag is an error the user must fix. */
+    public static String requireLanguageTag(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String tag = languageTag(raw);
+        if (tag == null) {
+            throw new InvalidProfileException("locale", "LanguageTag");
+        }
+        return tag;
+    }
+
     /** Claims from an identity provider. All optional; bad values are dropped. */
     public static IdentityProfile fromProvider(String name, String givenName, String familyName, String pictureUrl,
                                                String locale) {
@@ -69,6 +99,11 @@ public final class IdentityProfile {
 
     public Optional<String> locale() {
         return Optional.ofNullable(locale);
+    }
+
+    /** The same profile without its photo (e.g. the photo's host is not trusted). */
+    public IdentityProfile withoutPicture() {
+        return new IdentityProfile(name, givenName, familyName, null, locale);
     }
 
     public boolean isEmpty() {

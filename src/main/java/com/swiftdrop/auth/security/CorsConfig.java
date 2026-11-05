@@ -23,10 +23,10 @@ class CorsConfig {
     CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(properties.allowedOrigins());
-        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id"));
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id", "If-Match"));
         // Let the frontend show the support reference and honour rate limits
-        cors.setExposedHeaders(List.of("X-Request-Id", "Retry-After"));
+        cors.setExposedHeaders(List.of("X-Request-Id", "Retry-After", "ETag"));
         cors.setAllowCredentials(false);
         cors.setMaxAge(PREFLIGHT_CACHE);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

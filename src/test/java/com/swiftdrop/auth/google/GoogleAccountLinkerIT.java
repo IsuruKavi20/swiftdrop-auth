@@ -88,9 +88,12 @@ class GoogleAccountLinkerIT {
     @Test
     void unverifiedPasswordAccountIsReclaimedPasswordWipedSessionsEnded() {
         String email = uniqueEmail();
-        UUID existing = passwordUser(email, false);
+        // An attacker's session on an account whose mailbox was never proven. Sessions can't be STARTED on an
+        // unverified account (SessionService re-checks), so it is created verified and then made unverified again
+        UUID existing = passwordUser(email, true);
         String attackerSession = transactions.execute(status ->
                 sessions.start(users.findWithRolesById(existing).orElseThrow()).refreshToken());
+        jdbc.update("UPDATE identity.users SET email_verified = false WHERE id = ?", existing);
 
         UUID id = linker.link(GoogleIdentity.of(uniqueSub(), email, true));
 
