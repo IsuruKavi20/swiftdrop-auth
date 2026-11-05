@@ -169,6 +169,8 @@ swiftdrop:
       - {name: merchant-token, method: POST, path: /oauth2/token, per-minute: 30}
       - {name: merchant-apply, method: POST, path: /api/v1/merchants/application, per-minute: 5}
       - {name: profile-edit, method: PATCH, path: /api/v1/me/profile, per-minute: 20}
+      - {name: email-change, method: POST, path: /api/v1/me/email-change, per-minute: 5}
+      - {name: email-change-confirm, method: POST, path: /api/v1/auth/email-change/confirm, per-minute: 20}
       - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
   # Profile photos are shown to other people, so they may only point at trusted image hosts (no tracking pixels).
   # ".example.com" = any sub-domain of example.com; "img.example.com" = exactly that host.

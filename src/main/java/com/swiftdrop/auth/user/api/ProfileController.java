@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.user.api;
 
 import com.swiftdrop.auth.common.web.ApiPaths;
+import com.swiftdrop.auth.security.CurrentUser;
 import com.swiftdrop.auth.user.IfMatchRequiredException;
 import com.swiftdrop.auth.user.InvalidProfileException;
 import com.swiftdrop.auth.user.ProfilePatch;
@@ -11,7 +12,6 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,7 +40,7 @@ public class ProfileController {
 
     @GetMapping(value = PATH, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ProfileResponse> read(@AuthenticationPrincipal Jwt token) {
-        return respond(profiles.get(userIdOf(token)));
+        return respond(profiles.get(CurrentUser.idOf(token)));
     }
 
     /** JSON Merge Patch (RFC 7396) with a required If-Match (RFC 7232): 428 without it, 412 if it is stale. */
@@ -50,7 +50,7 @@ public class ProfileController {
                                                 @RequestHeader(value = HttpHeaders.IF_MATCH, required = false)
                                                 String ifMatch,
                                                 @RequestBody JsonNode body) {
-        UUID userId = userIdOf(token);
+        UUID userId = CurrentUser.idOf(token);
         if (ifMatch == null || ifMatch.isBlank()) {
             throw new IfMatchRequiredException();
         }
@@ -78,14 +78,5 @@ public class ProfileController {
         // Personal data: never kept by browsers or shared caches
         return ResponseEntity.ok().eTag(view.etag()).cacheControl(CacheControl.noStore())
                 .body(ProfileResponse.from(view));
-    }
-
-    // A user token's sub is the user's UUID; a merchant machine token's sub is its client id: no profile there
-    private static UUID userIdOf(Jwt token) {
-        try {
-            return UUID.fromString(token.getSubject());
-        } catch (IllegalArgumentException notAUser) {
-            throw new AccessDeniedException("Only user tokens have a profile");
-        }
     }
 }

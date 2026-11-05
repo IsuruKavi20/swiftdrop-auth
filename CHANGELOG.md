@@ -18,6 +18,14 @@ versions: [Semantic Versioning](https://semver.org/).
   Patch; `If-Match` required: 428 without, 412 when stale). Profile photos only from trusted image hosts
   (`swiftdrop.profile.picture-hosts`, default `.googleusercontent.com`); Google photos from other hosts are dropped.
 
+- **Email change request** (identity step 3b-1): `POST /api/v1/me/email-change` (current password required; 202
+  always; confirmation link to the new address, notice to the old one; one open request per user; flood limits).
+  New `account` module, migration V12, error codes `REAUTHENTICATION_FAILED`, `REAUTHENTICATION_REQUIRED`,
+  `EMAIL_UNCHANGED`.
+
+- **Email change confirmation** (identity step 3b-2): `POST /api/v1/auth/email-change/confirm {token}` (public,
+  single use, 1 hour). The old address gets "email changed" with a 7-day undo link.
+
 ### Changed
 - Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and
   the claims are for display/prefill (up to 15 minutes old).

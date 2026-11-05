@@ -1,0 +1,158 @@
+package com.swiftdrop.auth.account;
+
+import com.swiftdrop.auth.common.crypto.OpaqueTokens;
+import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.login.Reauthentication;
+import com.swiftdrop.auth.login.ReauthenticationFailedException;
+import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.User;
+import com.swiftdrop.auth.user.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Changing the login email (identity step 3b). Nothing changes until the NEW address confirms; the OLD address
+ * is told at once. The answer never reveals whether the new address already has an account.
+ */
+@Service
+public class EmailChangeService {
+
+    static final Duration CONFIRM_TTL = Duration.ofHours(1);
+    private static final Duration COOLDOWN = Duration.ofSeconds(60);
+    private static final int MAX_PER_DAY = 5;
+    private static final String CONFIRM_PATH = "/confirm-email-change";
+    static final Duration REVERT_TTL = Duration.ofDays(7);
+    private static final String REVERT_PATH = "/revert-email-change";
+    private static final Logger log = LoggerFactory.getLogger(EmailChangeService.class);
+
+    private final Reauthentication reauthentication;
+    private final UserRepository users;
+    private final EmailChangeRequestRepository requests;
+    private final ApplicationEventPublisher events;
+    private final TransactionTemplate transactions;
+    private final SecurityEmails emails;
+    private final FrontendProperties frontend;
+    private final Clock clock;
+
+    EmailChangeService(Reauthentication reauthentication, UserRepository users, EmailChangeRequestRepository requests,
+                       ApplicationEventPublisher events, TransactionTemplate transactions, SecurityEmails emails,
+                       FrontendProperties frontend, Clock clock) {
+        this.reauthentication = reauthentication;
+        this.users = users;
+        this.requests = requests;
+        this.events = events;
+        this.transactions = transactions;
+        this.emails = emails;
+        this.frontend = frontend;
+        this.clock = clock;
+    }
+
+    /** Re-authenticates (outside any transaction: Argon2 is slow), then records the request. */
+    public void request(UUID userId, String rawNewEmail, String currentPassword) {
+        EmailAddress newEmail = EmailAddress.of(rawNewEmail);
+        reauthentication.requireCurrentPassword(userId, currentPassword);
+        transactions.executeWithoutResult(status -> record(userId, newEmail));
+    }
+
+    private void record(UUID userId, EmailAddress newEmail) {
+        Instant now = clock.instant();
+        User user = users.lockById(userId).orElseThrow(ReauthenticationFailedException::new);
+        if (user.getEmail().equals(newEmail.value())) {
+            throw new EmailUnchangedException();
+        }
+        // Stops anyone from flooding a stranger's inbox with "confirm" mails; the answer stays the same
+        if (requests.existsByUserIdAndCreatedAtAfter(userId, now.minus(COOLDOWN))
+                || requests.countByUserIdAndCreatedAtAfter(userId, now.minus(Duration.ofDays(1))) >= MAX_PER_DAY) {
+            log.info("Email change request skipped (cooldown or daily limit) user={}", userId);
+            return;
+        }
+        requests.cancelOpen(userId, now);
+        EmailChangeRequest request = requests.save(
+                new EmailChangeRequest(userId, user.getEmail(), newEmail.value(), now, now.plus(CONFIRM_TTL)));
+        // Outbox: stored in this transaction, sent after commit, retried on failure
+        events.publishEvent(new EmailChangeRequested(request.getId()));
+        log.info("Email change requested user={} request={}", userId, request.getId());
+    }
+
+    /** From the outbox listener. Safe to run twice: a request whose link was already issued is skipped. */
+    @Transactional
+    public void sendRequestEmails(UUID requestId) {
+        EmailChangeRequest request = requests.findById(requestId).orElse(null);
+        if (request == null || !request.isOpenAt(clock.instant()) || request.hasConfirmToken()) {
+            return;
+        }
+        String token = OpaqueTokens.newToken();
+        request.issueConfirmToken(OpaqueTokens.hash(token));
+        EmailAddress newEmail = EmailAddress.of(request.getNewEmail());
+        if (users.existsByEmail(newEmail.value())) {
+            // Never a link to an address that has an account (and the requester can't tell the difference)
+            emails.sendAddressAlreadyUsed(newEmail);
+        } else {
+            // Token in the URL fragment: browsers never send it to servers or in Referer headers
+            emails.sendConfirmNewEmail(newEmail, frontend.link(CONFIRM_PATH + "#token=" + token));
+        }
+        emails.sendChangeRequested(EmailAddress.of(request.getOldEmail()), masked(newEmail));
+    }
+
+    /**
+     * The link from the NEW inbox: switches the login email (the mailbox is now proven). Sessions are kept: the
+     * owner is usually the one doing this; the OLD address gets an undo link that also ends every session.
+     */
+    @Transactional
+    public void confirm(String token) {
+        if (!OpaqueTokens.isWellFormed(token)) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        Instant now = clock.instant();
+        EmailChangeRequest request = requests.findByConfirmTokenHash(OpaqueTokens.hash(token))
+                .orElseThrow(InvalidEmailChangeLinkException::new);
+        User user = users.lockById(request.getUserId()).orElseThrow(InvalidEmailChangeLinkException::new);
+        // The account must still have the address the request started from, and the new one must still be free
+        if (!user.getEmail().equals(request.getOldEmail()) || users.existsByEmail(request.getNewEmail())) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        // Single use, also under concurrency: only one confirmation can turn the open request into confirmed
+        if (requests.confirmIfOpen(request.getId(), now) != 1) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        user.changeEmail(EmailAddress.of(request.getNewEmail()));
+        try {
+            users.saveAndFlush(user);
+        } catch (DataIntegrityViolationException takenAtTheSameMoment) {
+            // Another account took the address in the same instant: the unique email constraint decides
+            throw new InvalidEmailChangeLinkException();
+        }
+        events.publishEvent(new EmailChangeConfirmed(request.getId()));
+        log.info("Email changed user={} request={}", user.getId(), request.getId());
+    }
+
+    /** From the outbox listener: the undo link to the old address. The raw token never touches the outbox table. */
+    @Transactional
+    public void sendConfirmedEmails(UUID requestId) {
+        EmailChangeRequest request = requests.findById(requestId).orElse(null);
+        if (request == null || request.hasRevertToken()) {
+            return;
+        }
+        String token = OpaqueTokens.newToken();
+        request.issueRevertToken(OpaqueTokens.hash(token), clock.instant().plus(REVERT_TTL));
+        emails.sendEmailChanged(EmailAddress.of(request.getOldEmail()), masked(EmailAddress.of(request.getNewEmail())),
+                frontend.link(REVERT_PATH + "#token=" + token));
+    }
+
+    // "nimal.perera@example.com" -> "n***@example.com": the owner recognises it, a mailbox thief learns little
+    static String masked(EmailAddress email) {
+        String value = email.value();
+        int at = value.indexOf('@');
+        return value.charAt(0) + "***" + value.substring(at);
+    }
+}

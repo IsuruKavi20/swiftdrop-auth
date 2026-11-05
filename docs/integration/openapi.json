@@ -209,6 +209,27 @@
         }
       }
     },
+    "/api/v1/me/email-change" : {
+      "post" : {
+        "tags" : [ "account-controller" ],
+        "operationId" : "requestEmailChange",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EmailChangeBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
     "/api/v1/auth/signup" : {
       "post" : {
         "tags" : [ "signup-controller" ],
@@ -387,6 +408,27 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email-change/confirm" : {
+      "post" : {
+        "tags" : [ "email-change-link-controller" ],
+        "operationId" : "confirm",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LinkTokenBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
           }
         }
       }
@@ -867,6 +909,22 @@
           }
         }
       },
+      "EmailChangeBody" : {
+        "type" : "object",
+        "properties" : {
+          "new_email" : {
+            "type" : "string",
+            "maxLength" : 320,
+            "minLength" : 0
+          },
+          "current_password" : {
+            "type" : "string",
+            "maxLength" : 1024,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "current_password", "new_email" ]
+      },
       "SignupRequest" : {
         "type" : "object",
         "properties" : {
@@ -991,6 +1049,17 @@
           }
         }
       },
+      "LinkTokenBody" : {
+        "type" : "object",
+        "properties" : {
+          "token" : {
+            "type" : "string",
+            "maxLength" : 64,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "token" ]
+      },
       "MerchantStatusRequest" : {
         "type" : "object",
         "properties" : {
@@ -1036,57 +1105,57 @@
           "container" : {
             "type" : "boolean"
           },
-          "pojo" : {
-            "type" : "boolean"
-          },
-          "short" : {
+          "number" : {
             "type" : "boolean"
           },
           "string" : {
             "type" : "boolean"
           },
-          "number" : {
+          "double" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "boolean" : {
+            "type" : "boolean"
+          },
+          "binary" : {
             "type" : "boolean"
           },
           "textual" : {
             "type" : "boolean",
             "deprecated" : true
           },
-          "boolean" : {
+          "int" : {
+            "type" : "boolean"
+          },
+          "short" : {
             "type" : "boolean"
           },
           "long" : {
             "type" : "boolean"
           },
-          "binary" : {
-            "type" : "boolean"
-          },
-          "int" : {
-            "type" : "boolean"
-          },
-          "double" : {
-            "type" : "boolean"
-          },
-          "integralNumber" : {
+          "missingNode" : {
             "type" : "boolean"
           },
           "valueNode" : {
             "type" : "boolean"
           },
+          "integralNumber" : {
+            "type" : "boolean"
+          },
+          "floatingPointNumber" : {
+            "type" : "boolean"
+          },
           "bigDecimal" : {
-            "type" : "boolean"
-          },
-          "bigInteger" : {
-            "type" : "boolean"
-          },
-          "missingNode" : {
             "type" : "boolean"
           },
           "nodeType" : {
             "type" : "string",
             "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
           },
-          "floatingPointNumber" : {
+          "bigInteger" : {
             "type" : "boolean"
           },
           "embeddedValue" : {

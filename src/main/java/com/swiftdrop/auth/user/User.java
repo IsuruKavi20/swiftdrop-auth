@@ -156,6 +156,12 @@ public class User {
         this.emailVerified = true;
     }
 
+    /** A new login email whose mailbox was just proven (email change confirmation link). */
+    public void changeEmail(EmailAddress newEmail) {
+        this.email = newEmail.value();
+        this.emailVerified = true;
+    }
+
     /**
      * The user's own profile (sign-up, later profile edits): from now on a provider can't overwrite it.
      *
