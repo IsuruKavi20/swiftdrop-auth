@@ -105,6 +105,26 @@ class GoogleLoginFlowIT {
     }
 
     @Test
+    void theProfileInGooglesIdTokenIsSavedOnFirstLogin() throws Exception {
+        String email = uniqueEmail();
+        OidcIdToken idToken = new OidcIdToken("id-token", Instant.now(), Instant.now().plusSeconds(60), Map.of(
+                "iss", "https://accounts.google.com", "sub", uniqueSub(), "email", email, "email_verified", true,
+                "name", "Isuru Kavinda", "given_name", "Isuru", "family_name", "Kavinda",
+                "picture", "https://lh3.googleusercontent.com/a/photo", "locale", "si-LK"));
+        DefaultOidcUser google = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("OIDC_USER")), idToken);
+
+        successHandler.onAuthenticationSuccess(loginRequest(), new MockHttpServletResponse(),
+                new OAuth2AuthenticationToken(google, google.getAuthorities(), "google"));
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT name, given_name, family_name, picture_url, locale FROM identity.users WHERE email = ?", email);
+        assertThat(row).containsEntry("name", "Isuru Kavinda").containsEntry("given_name", "Isuru")
+                .containsEntry("family_name", "Kavinda")
+                .containsEntry("picture_url", "https://lh3.googleusercontent.com/a/photo")
+                .containsEntry("locale", "si-LK");
+    }
+
+    @Test
     void refusedGoogleAccountIsSentToTheFrontendWithAGenericError() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 

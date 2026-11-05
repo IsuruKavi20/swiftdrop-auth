@@ -1,6 +1,8 @@
 package com.swiftdrop.auth.signup;
 
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.PersonName;
+import com.swiftdrop.auth.user.ProfileSource;
 import com.swiftdrop.auth.user.Role;
 import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
@@ -18,6 +20,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +37,8 @@ import static org.mockito.Mockito.when;
 class UserRegistrarTest {
 
     private static final EmailAddress EMAIL = EmailAddress.of("isuru@x.com");
+    private static final PersonName NAME = PersonName.of("Isuru Kavinda");
+    private static final Instant NOW = Instant.parse("2026-11-06T10:00:00Z");
     private static final String HASH = "{argon2}$argon2id$hashed";
 
     @Mock
@@ -47,7 +54,7 @@ class UserRegistrarTest {
 
     @BeforeEach
     void setUp() {
-        registrar = new UserRegistrar(userRepository, roleRepository, events);
+        registrar = new UserRegistrar(userRepository, roleRepository, events, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -57,7 +64,7 @@ class UserRegistrarTest {
         when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(customer));
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
-        registrar.registerCustomer(EMAIL, HASH);
+        registrar.registerCustomer(EMAIL, NAME, HASH);
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).saveAndFlush(saved.capture());
@@ -66,6 +73,9 @@ class UserRegistrarTest {
         assertThat(saved.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(saved.getValue().isEmailVerified()).isFalse();
         assertThat(saved.getValue().getRoles()).containsExactly(customer);
+        assertThat(saved.getValue().getName()).isEqualTo("Isuru Kavinda");
+        assertThat(saved.getValue().getProfileSource()).isEqualTo(ProfileSource.USER);
+        assertThat(saved.getValue().getProfileUpdatedAt()).isEqualTo(NOW);
         verify(events).publishEvent(any(AccountRegistered.class));
     }
 
@@ -73,7 +83,7 @@ class UserRegistrarTest {
     void existingEmailIsReportedWithoutSaving() {
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, HASH))
+        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, NAME, HASH))
                 .isInstanceOf(DuplicateEmailException.class);
         verify(userRepository, never()).saveAndFlush(any());
         verify(events, never()).publishEvent(any());
@@ -85,7 +95,7 @@ class UserRegistrarTest {
         when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(uniqueViolation("uk_users_email"));
 
-        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, HASH))
+        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, NAME, HASH))
                 .isInstanceOf(DuplicateEmailException.class);
     }
 
@@ -95,7 +105,7 @@ class UserRegistrarTest {
         when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.of(mock(Role.class)));
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(uniqueViolation("some_other_constraint"));
 
-        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, HASH))
+        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, NAME, HASH))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -104,7 +114,7 @@ class UserRegistrarTest {
         when(userRepository.existsByEmail("isuru@x.com")).thenReturn(false);
         when(roleRepository.findByName(RoleName.CUSTOMER)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, HASH))
+        assertThatThrownBy(() -> registrar.registerCustomer(EMAIL, NAME, HASH))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(RoleName.CUSTOMER.name());
     }

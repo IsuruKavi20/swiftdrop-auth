@@ -1,6 +1,6 @@
 # Production: every secret comes from real environment variables / a secret store (no .env).
 spring:
-  # Managed Redis (DigitalOcean) on the private network, TLS only. Host and password: no value, no startup.
+  # Redis inside the Kubernetes cluster (Oracle OKE), private network, TLS only. Host and password: no value, no startup.
   data:
     redis:
       host: ${REDIS_HOST}

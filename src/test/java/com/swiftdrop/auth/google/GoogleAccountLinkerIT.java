@@ -3,6 +3,9 @@ package com.swiftdrop.auth.google;
 import com.swiftdrop.auth.TestcontainersConfiguration;
 import com.swiftdrop.auth.session.SessionService;
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.IdentityProfile;
+import com.swiftdrop.auth.user.PersonName;
+import com.swiftdrop.auth.user.ProfileSource;
 import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
@@ -15,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +29,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @ActiveProfiles("test")
 class GoogleAccountLinkerIT {
+
+    private static final IdentityProfile GOOGLE_PROFILE = IdentityProfile.fromProvider("Isuru Kavinda", "Isuru",
+            "Kavinda", "https://lh3.googleusercontent.com/a/photo", "si-LK");
 
     @Autowired
     private GoogleAccountLinker linker;
@@ -153,6 +160,78 @@ class GoogleAccountLinkerIT {
         UUID id = linker.link(GoogleIdentity.of(uniqueSub(), email, true));
 
         assertThat(users.findWithRolesById(id).orElseThrow().roleNames()).containsExactly("COURIER", "CUSTOMER");
+    }
+
+    @Test
+    void newGoogleUserGetsTheProfileGoogleSends() {
+        UUID id = linker.link(withProfile(uniqueSub(), uniqueEmail(), GOOGLE_PROFILE));
+
+        User user = users.findById(id).orElseThrow();
+        assertThat(user.getName()).isEqualTo("Isuru Kavinda");
+        assertThat(user.getGivenName()).isEqualTo("Isuru");
+        assertThat(user.getFamilyName()).isEqualTo("Kavinda");
+        assertThat(user.getPictureUrl()).isEqualTo("https://lh3.googleusercontent.com/a/photo");
+        assertThat(user.getLocale()).isEqualTo("si-LK");
+        assertThat(user.getProfileSource()).isEqualTo(ProfileSource.GOOGLE);
+    }
+
+    @Test
+    void returningGoogleUserFollowsChangesMadeAtGoogle() {
+        String sub = uniqueSub();
+        String email = uniqueEmail();
+        UUID id = linker.link(withProfile(sub, email, GOOGLE_PROFILE));
+
+        linker.link(withProfile(sub, email, IdentityProfile.fromProvider("Isuru K. Premasiri", null, null,
+                "https://lh3.googleusercontent.com/a/new-photo", null)));
+
+        User user = users.findById(id).orElseThrow();
+        assertThat(user.getName()).isEqualTo("Isuru K. Premasiri");
+        assertThat(user.getPictureUrl()).isEqualTo("https://lh3.googleusercontent.com/a/new-photo");
+    }
+
+    @Test
+    void linkingKeepsTheNameTheUserTypedButAddsGooglesPhoto() {
+        String email = uniqueEmail();
+        UUID existing = passwordUser(email, true);
+        transactions.executeWithoutResult(status -> users.findById(existing).orElseThrow()
+                .setOwnProfile(IdentityProfile.ofName(PersonName.of("Nimal Perera")), Instant.now()));
+
+        linker.link(withProfile(uniqueSub(), email, GOOGLE_PROFILE));
+
+        User user = users.findById(existing).orElseThrow();
+        assertThat(user.getName()).isEqualTo("Nimal Perera");
+        assertThat(user.getProfileSource()).isEqualTo(ProfileSource.USER);
+        assertThat(user.getPictureUrl()).isEqualTo("https://lh3.googleusercontent.com/a/photo");
+    }
+
+    @Test
+    void reclaimingAPreHijackedAccountAlsoRemovesTheAttackersName() {
+        String email = uniqueEmail();
+        UUID planted = passwordUser(email, false);   // attacker signed up with the victim's email, never verified
+        transactions.executeWithoutResult(status -> users.findById(planted).orElseThrow()
+                .setOwnProfile(IdentityProfile.ofName(PersonName.of("Support: visit evil.example")), Instant.now()));
+
+        linker.link(withProfile(uniqueSub(), email, GOOGLE_PROFILE));
+
+        User user = users.findById(planted).orElseThrow();
+        assertThat(user.getName()).isEqualTo("Isuru Kavinda");
+        assertThat(user.getProfileSource()).isEqualTo(ProfileSource.GOOGLE);
+    }
+
+    @Test
+    void unusableProfileDataNeverBlocksTheLogin() {
+        IdentityProfile junk = IdentityProfile.fromProvider("bad\u202Ename", "", null, "javascript:alert(1)", "??");
+
+        UUID id = linker.link(withProfile(uniqueSub(), uniqueEmail(), junk));
+
+        User user = users.findById(id).orElseThrow();
+        assertThat(user.getName()).isNull();
+        assertThat(user.getPictureUrl()).isNull();
+        assertThat(user.getProfileSource()).isNull();
+    }
+
+    private static GoogleIdentity withProfile(String sub, String email, IdentityProfile profile) {
+        return new GoogleIdentity(sub, email, true, null, profile);
     }
 
     private UUID passwordUser(String email, boolean verified) {

@@ -2,6 +2,7 @@ package com.swiftdrop.auth.merchant;
 
 import com.jayway.jsonpath.JsonPath;
 import com.swiftdrop.auth.TestcontainersConfiguration;
+import com.swiftdrop.auth.token.TestPeople;
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
 import com.swiftdrop.auth.user.EmailAddress;
@@ -104,7 +105,7 @@ class MerchantClientCredentialsIT {
 
     @Test
     void someoneWhoIsNotAMerchantCannotCreateCredentials() throws Exception {
-        String customer = "Bearer " + issuer.issue(customer(), List.of("CUSTOMER"),
+        String customer = "Bearer " + issuer.issue(customer(), TestPeople.SOMEONE, List.of("CUSTOMER"),
                 List.of("parcel:create", "parcel:read-own")).value();
 
         mockMvc.perform(post(CLIENTS).header("Authorization", customer).contentType(MediaType.APPLICATION_JSON)
@@ -242,7 +243,7 @@ class MerchantClientCredentialsIT {
     }
 
     private String merchantToken(UUID owner) {
-        return "Bearer " + issuer.issue(owner, List.of("CUSTOMER", "MERCHANT"), MERCHANT_PERMISSIONS).value();
+        return "Bearer " + issuer.issue(owner, TestPeople.SOMEONE, List.of("CUSTOMER", "MERCHANT"), MERCHANT_PERMISSIONS).value();
     }
 
     private UUID approvedMerchant() {

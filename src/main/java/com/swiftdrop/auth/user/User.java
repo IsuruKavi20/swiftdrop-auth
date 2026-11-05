@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -55,6 +56,29 @@ public class User {
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
+
+    // Identity profile (OIDC standard claims). Written only through setOwnProfile / applyProviderProfile.
+    @Column(length = 300)
+    private String name;
+
+    @Column(name = "given_name", length = 300)
+    private String givenName;
+
+    @Column(name = "family_name", length = 300)
+    private String familyName;
+
+    @Column(name = "picture_url", length = 2048)
+    private String pictureUrl;
+
+    @Column(length = 35)
+    private String locale;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "profile_source", length = 10)
+    private ProfileSource profileSource;
+
+    @Column(name = "profile_updated_at")
+    private Instant profileUpdatedAt;
 
     // Timestamps come from the application clock (all writes go through JPA). The DB defaults
     // are only a safety net for raw SQL inserts; raw SQL updates do not refresh updated_at.
@@ -132,6 +156,73 @@ public class User {
         this.emailVerified = true;
     }
 
+    /**
+     * The user's own profile (sign-up, later profile edits): from now on a provider can't overwrite it.
+     *
+     * @return true if anything changed
+     */
+    public boolean setOwnProfile(IdentityProfile profile, Instant now) {
+        return replaceProfile(profile.name().map(PersonName::value).orElse(null),
+                profile.givenName().map(PersonName::value).orElse(null),
+                profile.familyName().map(PersonName::value).orElse(null),
+                profile.pictureUrl().orElse(null), profile.locale().orElse(null), ProfileSource.USER, now);
+    }
+
+    /** Forget the profile entirely, e.g. a name typed by someone who never proved they own this mailbox. */
+    public void clearProfile(Instant now) {
+        replaceProfile(null, null, null, null, null, null, now);
+    }
+
+    /**
+     * Profile from Google login. A Google-owned profile follows Google's latest values; a user-owned profile only
+     * gets fields the user never set. Missing claims never erase what we have.
+     *
+     * @return true if anything changed
+     */
+    public boolean applyProviderProfile(IdentityProfile profile, Instant now) {
+        if (profile.isEmpty()) {
+            return false;
+        }
+        boolean usersOwn = profileSource == ProfileSource.USER;
+        // Given/family name are parts of a name: never attach Google's parts to a name the user typed
+        boolean nameIsUsers = usersOwn && name != null;
+        String newGiven = nameIsUsers ? givenName
+                : merge(givenName, profile.givenName().map(PersonName::value).orElse(null), usersOwn);
+        String newFamily = nameIsUsers ? familyName
+                : merge(familyName, profile.familyName().map(PersonName::value).orElse(null), usersOwn);
+        return replaceProfile(merge(name, profile.name().map(PersonName::value).orElse(null), usersOwn),
+                newGiven, newFamily, merge(pictureUrl, profile.pictureUrl().orElse(null), usersOwn),
+                merge(locale, profile.locale().orElse(null), usersOwn),
+                usersOwn ? ProfileSource.USER : ProfileSource.GOOGLE, now);
+    }
+
+    // The one place profile fields change: nothing differs -> nothing written, timestamp unchanged
+    private boolean replaceProfile(String newName, String newGiven, String newFamily, String newPicture,
+                                   String newLocale, ProfileSource newSource, Instant now) {
+        boolean changed = !Objects.equals(newName, name) || !Objects.equals(newGiven, givenName)
+                || !Objects.equals(newFamily, familyName) || !Objects.equals(newPicture, pictureUrl)
+                || !Objects.equals(newLocale, locale) || newSource != profileSource;
+        if (!changed) {
+            return false;
+        }
+        this.name = newName;
+        this.givenName = newGiven;
+        this.familyName = newFamily;
+        this.pictureUrl = newPicture;
+        this.locale = newLocale;
+        this.profileSource = newSource;
+        this.profileUpdatedAt = now;
+        return true;
+    }
+
+    // Absent incoming value: keep ours. User-owned: only fill a gap. Provider-owned: take the newer value.
+    private static String merge(String current, String incoming, boolean usersOwn) {
+        if (incoming == null || (usersOwn && current != null)) {
+            return current;
+        }
+        return incoming;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -162,6 +253,34 @@ public class User {
 
     public Instant getLastLoginAt() {
         return lastLoginAt;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getGivenName() {
+        return givenName;
+    }
+
+    public String getFamilyName() {
+        return familyName;
+    }
+
+    public String getPictureUrl() {
+        return pictureUrl;
+    }
+
+    public String getLocale() {
+        return locale;
+    }
+
+    public ProfileSource getProfileSource() {
+        return profileSource;
+    }
+
+    public Instant getProfileUpdatedAt() {
+        return profileUpdatedAt;
     }
 
     public Instant getCreatedAt() {

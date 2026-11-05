@@ -3,6 +3,7 @@ package com.swiftdrop.auth.session;
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
 import com.swiftdrop.auth.token.IssuedToken;
+import com.swiftdrop.auth.token.PersonClaims;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
 import com.swiftdrop.auth.user.UserStatus;
@@ -43,11 +44,15 @@ public class SessionService {
     /**
      * After a successful login. The user row is locked and re-read, so the token gets the roles as they are NOW
      * (a role revoke running at the same moment either finishes first or waits for this session, then ends it).
+     * The account checks run again on that fresh row: an admin who disabled it after the caller's check wins.
      */
     @Transactional
     public SessionTokens start(User user) {
         Instant now = clock.instant();
         User current = users.lockById(user.getId()).orElseThrow(InvalidRefreshTokenException::new);
+        if (current.getStatus() != UserStatus.ACTIVE || !current.isEmailVerified()) {
+            throw new InvalidRefreshTokenException();
+        }
         return issue(current, UUID.randomUUID(), now.plus(properties.absoluteTimeout()), now);
     }
 
@@ -110,7 +115,9 @@ public class SessionService {
         Instant expiresAt = idleLimit.isBefore(familyExpiresAt) ? idleLimit : familyExpiresAt;
         tokens.save(new RefreshToken(user.getId(), familyId, OpaqueTokens.hash(refreshToken), now, expiresAt,
                 familyExpiresAt));
-        IssuedToken access = accessTokens.issue(user.getId(), user.roleNames(), user.permissionNames());
+        // Identity claims come from the user row read for this login/refresh: a changed name shows up next refresh
+        PersonClaims person = new PersonClaims(user.getEmail(), user.isEmailVerified(), user.getName());
+        IssuedToken access = accessTokens.issue(user.getId(), person, user.roleNames(), user.permissionNames());
         return new SessionTokens(access, refreshToken, Duration.between(now, expiresAt));
     }
 }

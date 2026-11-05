@@ -813,6 +813,11 @@
       "SignupRequest" : {
         "type" : "object",
         "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 1200,
+            "minLength" : 0
+          },
           "email" : {
             "type" : "string",
             "maxLength" : 320,
@@ -824,7 +829,7 @@
             "minLength" : 0
           }
         },
-        "required" : [ "email", "password" ]
+        "required" : [ "email", "name", "password" ]
       },
       "SignupAcceptedResponse" : {
         "type" : "object",

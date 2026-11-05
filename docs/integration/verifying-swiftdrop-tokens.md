@@ -36,7 +36,27 @@ allowed frontend origins are set with `SWIFTDROP_CORS_ALLOWED_ORIGINS`.
 | `aud` | `swiftdrop-api` |
 | `client_id` | `swiftdrop-web` |
 | `exp` / `iat` / `jti` | expiry (15 min after issue), issue time, unique token ID |
-There is **no email or name** in the token by design.
+| `email` | the login email, e.g. `nimal@example.com` (OpenID Connect standard claim) · **user tokens only** |
+| `email_verified` | `true` once the user proved they own the email (always `true` for anyone who can log in) |
+| `name` | display name, e.g. `Nimal Perera` · **missing** for older accounts without a name: handle `null` |
+
+### Identity claims: how to use them (and how not to)
+`email`, `email_verified` and `name` were added on 2026-11-06 so your app can greet the user
+and prefill forms without asking again. Rules:
+1. **`sub` is the only user id.** Store and link records by `sub` (UUID), **never by email**: emails change, `sub`
+   never does.
+2. **Display and prefill only.** The values can be **up to 15 minutes old** (one token lifetime); after a user
+   changes their name or email, the token shows the new value from their next refresh. Anything that must be
+   exactly current (sending an email/SMS) will use the Directory API (planned, not available yet).
+3. **Don't copy them into your own tables as the truth.** Identity belongs to the auth service; SwiftDrop's shared
+   `identity` module will keep the only copy (`app_users`), updated by auth's events (planned).
+4. **Merchant (client-credentials) tokens and dev test tokens have none of these claims**: no person behind them.
+5. **`name` is untrusted text** typed by the user: always HTML-escape it when displaying it, and never use it
+   (or `email`) for authorization decisions. Permissions come only from `entitlements`.
+6. **Never link or merge accounts by `email`** in your service; that is the auth service's job (it has the
+   pre-hijack defences).
+7. **What is never in a token:** password data, picture, phone number, address, birthdate. Tokens travel in every
+   request header and often end up in logs, so they carry only small, non-secret claims.
 
 ### Permissions per role (draft vocabulary: tell the auth team before adding one)
 | Role | Entitlements |
@@ -133,6 +153,12 @@ is what checks `typ: at+jwt`, issuer, audience, client_id, expiry and required c
 List<DeliveryDto> myDeliveries(@AuthenticationPrincipal Jwt token) {
     UUID courierId = UUID.fromString(token.getSubject());   // ALWAYS take the ID from the token,
     return deliveries.findForCourier(courierId);            // never from a request parameter
+}
+
+@GetMapping("/api/v1/me/greeting")
+String greeting(@AuthenticationPrincipal Jwt token) {
+    String name = token.getClaimAsString("name");           // may be null for older accounts
+    return "Hi " + (name != null ? name : "there");          // display only; link records by getSubject()
 }
 ```
 **Required brief test:** a courier must not see another courier's deliveries. Filter by `token.getSubject()`

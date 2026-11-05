@@ -79,7 +79,7 @@ class TokenVerificationIT {
                 .issuer("http://localhost").audience("swiftdrop-api").clientId("swiftdrop-web").build());
         UUID userId = UUID.randomUUID();
 
-        String token = issuer.issue(userId, List.of("COURIER"), List.of()).value();
+        String token = issuer.issue(userId, TestPeople.SOMEONE, List.of("COURIER"), List.of()).value();
 
         assertThat(teammateService.decode(token).getSubject()).isEqualTo(userId.toString());
     }
@@ -87,7 +87,7 @@ class TokenVerificationIT {
     @Test
     void validTokenOpensTheProtectedEndpoint() throws Exception {
         UUID userId = UUID.randomUUID();
-        String token = issuer.issue(userId, List.of("COURIER"), List.of()).value();
+        String token = issuer.issue(userId, TestPeople.SOMEONE, List.of("COURIER"), List.of()).value();
 
         mockMvc.perform(get(ME).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -113,7 +113,7 @@ class TokenVerificationIT {
 
     @Test
     void tamperedTokenIsRejected() throws Exception {
-        String token = issuer.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()).value();
+        String token = issuer.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()).value();
         String[] parts = token.split("\\.");
         String tampered = parts[0] + "." + parts[1] + "x." + parts[2];
 
@@ -129,7 +129,7 @@ class TokenVerificationIT {
                 Clock.fixed(twoHoursAgo, ZoneOffset.UTC));
 
         mockMvc.perform(get(ME).header("Authorization",
-                        "Bearer " + past.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()).value()))
+                        "Bearer " + past.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()).value()))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -156,7 +156,7 @@ class TokenVerificationIT {
                 Clock.systemUTC());
 
         mockMvc.perform(get(ME).header("Authorization",
-                        "Bearer " + wrongIssuer.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()).value()))
+                        "Bearer " + wrongIssuer.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()).value()))
                 .andExpect(status().isUnauthorized());
     }
 }

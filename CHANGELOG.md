@@ -3,6 +3,30 @@
 All notable changes to the SwiftDrop Auth Service. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions: [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Identity profile** (identity plan step 1): `name`, `given_name`, `family_name`, `picture_url`, `locale` on users
+  (OpenID Connect claim names), with `profile_source` (USER/GOOGLE) and `profile_updated_at` (migration V11).
+- Google login imports the profile from the signed ID token; a user-typed name is never overwritten, Google only
+  fills empty fields; invalid claims are dropped without failing the login.
+- **Identity claims in user access tokens** (identity plan step 2): `email`, `email_verified` and `name` (OpenID
+  Connect names; `name` omitted when the account has none). Refreshed tokens carry the current values. Merchant
+  (client-credentials) and dev test tokens carry none. Picture, phone and address are never put in a token.
+
+### Changed
+- Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and
+  the claims are for display/prefill (up to 15 minutes old).
+- **Breaking:** `POST /api/v1/auth/signup` now requires `name` (1–100 visible characters, every script; hidden,
+  bidi and control characters rejected with `400 invalid-name`). Clients must send the "Full name" field.
+
+### Security
+- Reclaiming a pre-hijacked account through Google also removes the profile the attacker typed.
+- Session start re-checks the account on the locked, fresh row: an account disabled between the password check and
+  token issuing gets no tokens (race found in review).
+- Name validation blocks bidi overrides, zero-width and blank-looking characters, and line separators; photo URLs
+  must be exactly `https://` with a real host and no credentials (also enforced by a database CHECK).
+
 ## [1.0.0] - 2026-10-31
 
 First release: Module 1 (Identity, Access & Auth) of SwiftDrop as a separate, deployable service.

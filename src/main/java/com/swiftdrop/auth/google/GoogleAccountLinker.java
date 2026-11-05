@@ -52,13 +52,15 @@ public class GoogleAccountLinker {
         Instant now = clock.instant();
         Optional<OAuthAccount> linked = accounts.findByProviderAndProviderUserId(PROVIDER, google.sub());
         if (linked.isPresent()) {
-            return requireUsable(lock(linked.get().getUserId()), now).getId();
+            User returning = requireUsable(lock(linked.get().getUserId()), now);
+            returning.applyProviderProfile(google.profile(), now);
+            return returning.getId();
         }
         EmailAddress email = emailOf(google);
         // Only the id (not the entity), then lock: the locked row is read fresh, never from Hibernate's cache
         Optional<UUID> existingId = users.findIdByEmail(email.value());
         if (existingId.isEmpty()) {
-            return createUser(email, google.sub(), now);
+            return createUser(email, google, now);
         }
         requireGoogleVouchesForTheMailbox(google, email);
         User user = requireUsable(lock(existingId.get()), now);
@@ -66,28 +68,33 @@ public class GoogleAccountLinker {
             throw new GoogleLoginRefusedException("Account already linked to another Google account");
         }
         if (!user.isEmailVerified()) {
-            reclaim(user);
+            reclaim(user, now);
         }
         accounts.save(new OAuthAccount(user.getId(), PROVIDER, google.sub(), now));
+        // A name the user typed at sign-up stays; Google may only fill fields they never set (e.g. a photo)
+        user.applyProviderProfile(google.profile(), now);
         log.info("Google account linked: user={}", user.getId());
         return user.getId();
     }
 
     // Pre-hijack defence: whoever set the password never proved they own this mailbox; Google just did.
-    // The owner keeps the account, the unproven password and every session made with it are destroyed.
-    private void reclaim(User user) {
+    // The owner keeps the account; the unproven password, every session made with it, and the name typed with it
+    // (it could be the attacker's text, e.g. "Support: visit evil.example") are destroyed. Google's profile follows.
+    private void reclaim(User user, Instant now) {
+        user.clearProfile(now);
         user.removePassword();
         user.markEmailVerified();
         sessions.endAllSessions(user.getId(), RevokeReason.ACCOUNT_RECLAIMED);
         log.warn("Unverified password account reclaimed through Google: user={}", user.getId());
     }
 
-    private UUID createUser(EmailAddress email, String sub, Instant now) {
+    private UUID createUser(EmailAddress email, GoogleIdentity google, Instant now) {
         User user = new User(email, null);
         user.markEmailVerified();
+        user.applyProviderProfile(google.profile(), now);
         user.addRole(roles.findByName(RoleName.CUSTOMER).orElseThrow());
         UUID id = users.saveAndFlush(user).getId();
-        accounts.save(new OAuthAccount(id, PROVIDER, sub, now));
+        accounts.save(new OAuthAccount(id, PROVIDER, google.sub(), now));
         log.info("New account created through Google: user={}", id);
         return id;
     }

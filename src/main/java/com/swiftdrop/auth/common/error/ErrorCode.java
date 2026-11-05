@@ -14,6 +14,8 @@ public enum ErrorCode {
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "Request validation failed", "One or more fields are invalid."),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request", "The request could not be read."),
     INVALID_EMAIL(HttpStatus.BAD_REQUEST, "Invalid email address", "The email address is not valid."),
+    INVALID_NAME(HttpStatus.BAD_REQUEST, "Invalid name",
+            "The name must be 1-100 characters without control or hidden characters."),
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST, "Invalid or expired link",
             "This link is invalid or has expired. Request a new verification email."),
     WEAK_PASSWORD(HttpStatus.BAD_REQUEST, "Password not accepted",
