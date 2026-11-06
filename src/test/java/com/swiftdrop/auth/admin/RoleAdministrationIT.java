@@ -63,7 +63,9 @@ class RoleAdministrationIT {
                 JOIN identity.role_permissions rp ON rp.permission_id = p.id
                 JOIN identity.roles r ON r.id = rp.role_id WHERE r.name = 'DISPATCHER'""", String.class);
 
-        assertThat(dispatcher).containsExactlyInAnyOrder("parcel:read-all", "parcel:assign", "delivery:read-all");
+        // role:approve-courier since identity step 7 (dispatchers approve couriers; never dispatchers or admins)
+        assertThat(dispatcher).containsExactlyInAnyOrder("parcel:read-all", "parcel:assign", "delivery:read-all",
+                "role:approve-courier");
     }
 
     @Test

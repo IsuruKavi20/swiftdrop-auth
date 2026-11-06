@@ -6,6 +6,7 @@ import com.swiftdrop.auth.common.error.ErrorCode;
 import com.swiftdrop.auth.session.RevokeReason;
 import com.swiftdrop.auth.session.SessionService;
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.RoleConflicts;
 import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
@@ -59,6 +60,10 @@ public class RoleAdministration {
         if (!user.isEmailVerified() || user.getStatus() != UserStatus.ACTIVE) {
             // Same rule as AdminBootstrap: a role (above all ADMIN) only goes to a proven, active account
             throw new AdminException(ErrorCode.ACCOUNT_NOT_ELIGIBLE);
+        }
+        if (RoleConflicts.conflictFor(user, role).isPresent()) {
+            // Separation of duties: the same rule as role applications, so this endpoint can't be used to bypass it
+            throw new AdminException(ErrorCode.ROLE_CONFLICT);
         }
         if (!user.hasRole(role)) {
             user.addRole(roles.findByName(role).orElseThrow());

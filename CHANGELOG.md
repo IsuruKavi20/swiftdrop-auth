@@ -52,6 +52,11 @@ versions: [Semantic Versioning](https://semver.org/).
   retries with backoff, dead after 24 h, multi-pod safe with `SKIP LOCKED`, V18), and collectable by polling
   (6d, RFC 8936: `POST /api/v1/events/poll`, own receiver only, `events:read`; states DEAD vs REJECTED, V19).
 
+- **Role applications, part 1** (identity step 7a): `POST/GET /api/v1/me/role-applications`, `DELETE …/{id}`
+  (COURIER or DISPATCHER; one open per role; 7 days after a rejection; separation of duties: never COURIER and
+  DISPATCHER together, also enforced by the admin grant endpoint). Permissions `role:approve-courier` (ADMIN,
+  DISPATCHER) and `role:approve-dispatcher` (ADMIN). V20.
+
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.
 - Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and

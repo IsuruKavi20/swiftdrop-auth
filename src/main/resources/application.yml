@@ -181,6 +181,7 @@ swiftdrop:
       - {name: directory-list, method: GET, path: /api/v1/directory/users, per-minute: 120}
       - {name: directory-lookup, method: POST, path: /api/v1/directory/users/lookup, per-minute: 120}
       - {name: events-poll, method: POST, path: /api/v1/events/poll, per-minute: 120}
+      - {name: role-apply, method: POST, path: /api/v1/me/role-applications, per-minute: 5}
       - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
   # Identity events (identity step 6): signed SETs pushed to receivers (RFC 8935). Per environment, e.g.
   # receivers: [{id: swiftdrop-backend, audience: swiftdrop-backend, push-url: https://api.../internal/identity-events}]
