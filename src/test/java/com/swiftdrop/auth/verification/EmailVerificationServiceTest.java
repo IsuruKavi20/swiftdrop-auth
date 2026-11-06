@@ -5,6 +5,7 @@ import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.transaction.support.TransactionOperations;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -59,7 +60,7 @@ class EmailVerificationServiceTest {
     void setUp() {
         service = new EmailVerificationService(users, tokens, sender, events,
                 new VerificationProperties(TTL, COOLDOWN, MAX_PER_DAY), new FrontendProperties(FRONTEND),
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), TransactionOperations.withoutTransaction());
     }
 
     @Test

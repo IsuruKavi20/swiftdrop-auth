@@ -90,24 +90,47 @@ public class EmailChangeService {
         log.info("Email change requested user={} request={}", userId, request.getId());
     }
 
-    /** From the outbox listener. Safe to run twice: a request whose link was already issued is skipped. */
-    @Transactional
+    /**
+     * From the outbox listener. The link's hash is committed BEFORE the mail leaves, so a link can never arrive
+     * before the server knows it (a fast click or a mail scanner would otherwise get "invalid link"). Safe to run
+     * twice: a request whose link was already issued is skipped. If sending fails, the hash is removed again so the
+     * outbox retry issues a fresh link instead of skipping.
+     */
     public void sendRequestEmails(UUID requestId) {
+        IssuedLink link = transactions.execute(status -> issueConfirmLink(requestId));
+        if (link == null) {
+            return;
+        }
+        try {
+            if (link.newAddressTaken()) {
+                // Never a link to an address that has an account (and the requester can't tell the difference)
+                emails.sendAddressAlreadyUsed(link.newEmail());
+            } else {
+                // Token in the URL fragment: browsers never send it to servers or in Referer headers
+                emails.sendConfirmNewEmail(link.newEmail(), frontend.link(CONFIRM_PATH + "#token=" + link.token()));
+            }
+            emails.sendChangeRequested(link.oldEmail(), masked(link.newEmail()));
+        } catch (RuntimeException sendFailed) {
+            transactions.executeWithoutResult(status ->
+                    requests.lockById(requestId).ifPresent(request -> request.issueConfirmToken(null)));
+            throw sendFailed;
+        }
+    }
+
+    private IssuedLink issueConfirmLink(UUID requestId) {
         EmailChangeRequest request = requests.lockById(requestId).orElse(null);
         if (request == null || !request.isOpenAt(clock.instant()) || request.hasConfirmToken()) {
-            return;
+            return null;
         }
         String token = OpaqueTokens.newToken();
         request.issueConfirmToken(OpaqueTokens.hash(token));
         EmailAddress newEmail = EmailAddress.of(request.getNewEmail());
-        if (users.existsByEmail(newEmail.value())) {
-            // Never a link to an address that has an account (and the requester can't tell the difference)
-            emails.sendAddressAlreadyUsed(newEmail);
-        } else {
-            // Token in the URL fragment: browsers never send it to servers or in Referer headers
-            emails.sendConfirmNewEmail(newEmail, frontend.link(CONFIRM_PATH + "#token=" + token));
-        }
-        emails.sendChangeRequested(EmailAddress.of(request.getOldEmail()), masked(newEmail));
+        return new IssuedLink(token, EmailAddress.of(request.getOldEmail()), newEmail,
+                users.existsByEmail(newEmail.value()));
+    }
+
+    /** A link whose hash is already committed; the raw token lives only in memory until it is mailed. */
+    private record IssuedLink(String token, EmailAddress oldEmail, EmailAddress newEmail, boolean newAddressTaken) {
     }
 
     /**
@@ -180,17 +203,34 @@ public class EmailChangeService {
                 user.getId(), request.getId());
     }
 
-    /** From the outbox listener: the undo link to the old address. The raw token never touches the outbox table. */
-    @Transactional
+    /**
+     * From the outbox listener: the undo link to the old address. The raw token never touches the outbox table.
+     * Like the confirm link, its hash is committed before the mail leaves, and removed again if sending fails.
+     */
     public void sendConfirmedEmails(UUID requestId) {
+        IssuedLink link = transactions.execute(status -> issueRevertLink(requestId));
+        if (link == null) {
+            return;
+        }
+        try {
+            emails.sendEmailChanged(link.oldEmail(), masked(link.newEmail()),
+                    frontend.link(REVERT_PATH + "#token=" + link.token()));
+        } catch (RuntimeException sendFailed) {
+            transactions.executeWithoutResult(status ->
+                    requests.lockById(requestId).ifPresent(request -> request.issueRevertToken(null, null)));
+            throw sendFailed;
+        }
+    }
+
+    private IssuedLink issueRevertLink(UUID requestId) {
         EmailChangeRequest request = requests.lockById(requestId).orElse(null);
         if (request == null || request.hasRevertToken()) {
-            return;
+            return null;
         }
         String token = OpaqueTokens.newToken();
         request.issueRevertToken(OpaqueTokens.hash(token), clock.instant().plus(REVERT_TTL));
-        emails.sendEmailChanged(EmailAddress.of(request.getOldEmail()), masked(EmailAddress.of(request.getNewEmail())),
-                frontend.link(REVERT_PATH + "#token=" + token));
+        return new IssuedLink(token, EmailAddress.of(request.getOldEmail()),
+                EmailAddress.of(request.getNewEmail()), false);
     }
 
     // "nimal.perera@example.com" -> "n***@example.com": the owner recognises it, a mailbox thief learns little
