@@ -24,6 +24,12 @@ RUN ./mvnw -q -B -DskipTests package \
 # The TARGET processor (amd64 on a laptop, arm64 for Oracle Ampere): only this small stage is built for it
 FROM eclipse-temurin:25-jre-noble
 
+# Security fixes Ubuntu has released since the base image was built (e.g. CVE-2026-109518 in apt), then remove the
+# package lists so they don't bloat the image. Each rebuild picks up the newest fixes.
+RUN apt-get update \
+    && apt-get -y upgrade --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 # Never run as root: a fixed, unprivileged user with no login shell
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
