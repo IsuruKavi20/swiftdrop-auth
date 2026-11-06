@@ -61,6 +61,18 @@ class IdentityEventsIT {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private com.swiftdrop.auth.admin.RoleAdministration roleAdministration;
+
+    @Autowired
+    private com.swiftdrop.auth.google.GoogleAccountLinker googleLinker;
+
+    @Autowired
+    private com.swiftdrop.auth.session.SessionService sessions;
+
+    @Autowired
+    private IdentityEventRetention retention;
+
     @Test
     void eachEventGetsTheNextVersionOfThatPerson() {
         UUID id = person();
@@ -116,9 +128,79 @@ class IdentityEventsIT {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"current_password\":\"" + PASSWORD + "\"}"))
                 .andExpect(status().isAccepted());
 
-        assertThat(types(id)).containsExactly(CAEP + "session-revoked", RISC + "account-purged");
+        // No session existed, so no "sessions ended" event: only real changes are recorded
+        assertThat(types(id)).containsExactly(RISC + "account-purged");
         // The purge event carries no personal data at all
         assertThat(lastEvent(id).get("payload").toString()).doesNotContain("@", "Nimal");
+    }
+
+    @Test
+    void deletingTheAccountWipesThePersonalDataOfItsEarlierEvents() throws Exception {
+        UUID id = person();
+        transactions.executeWithoutResult(status -> events.registered(users.findWithRolesById(id).orElseThrow()));
+
+        mockMvc.perform(delete("/api/v1/me").header("Authorization", bearer(id))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"current_password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isAccepted());
+
+        assertThat(jdbc.queryForList("SELECT payload::text FROM identity.identity_events WHERE user_id = ?",
+                String.class, id)).allMatch(payload -> payload.equals("{}"));
+    }
+
+    @Test
+    void grantingARoleRecordsTheNewRoleList() {
+        UUID id = person();
+
+        roleAdministration.grant(UUID.randomUUID(), id, RoleName.COURIER);
+
+        assertThat(types(id)).containsExactly(OURS + "roles-changed");
+        assertThat(lastEvent(id).get("payload").toString()).contains("COURIER");
+    }
+
+    @Test
+    void aNewGoogleAccountIsRegistered() {
+        UUID id = googleLinker.link(new com.swiftdrop.auth.google.GoogleIdentity(String.valueOf(System.nanoTime()),
+                "events-g-" + UUID.randomUUID().toString().substring(0, 8) + "@gmail.com", true, null));
+
+        assertThat(types(id)).containsExactly(OURS + "user-registered");
+    }
+
+    @Test
+    void changingThePasswordRecordsACredentialChange() throws Exception {
+        UUID id = person();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/me/password")
+                        .header("Authorization", bearer(id)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"current_password\":\"" + PASSWORD
+                                + "\",\"new_password\":\"a brand new and much longer passphrase\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(types(id)).first().isEqualTo(CAEP + "credential-change");
+    }
+
+    @Test
+    void endingSessionsThatDontExistRecordsNothing() {
+        UUID id = person();
+
+        transactions.executeWithoutResult(status ->
+                sessions.endAllSessions(id, com.swiftdrop.auth.session.RevokeReason.LOGOUT));
+
+        assertThat(types(id)).isEmpty();
+    }
+
+    @Test
+    void oldEventsAreDeletedAfterTheRetentionPeriod() {
+        UUID oldEvent = jdbc.queryForObject("INSERT INTO identity.identity_events (user_id, user_version, event_type,"
+                + " payload, occurred_at) VALUES (gen_random_uuid(), 1, 'https://schemas.swiftdrop.me/secevent/"
+                + "identity/profile-updated', '{}'::jsonb, now() - interval '40 days') RETURNING id", UUID.class);
+        UUID recent = person();
+        transactions.executeWithoutResult(status -> events.profileUpdated(users.findById(recent).orElseThrow()));
+
+        retention.deleteExpired();
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM identity.identity_events WHERE id = ?", Integer.class,
+                oldEvent)).isZero();
+        assertThat(versions(recent)).containsExactly(1L);
     }
 
     @Test

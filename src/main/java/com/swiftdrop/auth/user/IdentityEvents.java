@@ -20,6 +20,9 @@ import java.util.UUID;
 @Component
 public class IdentityEvents {
 
+    /** Any fixed number: the transaction-scoped lock that keeps diary lines committing in order. */
+    private static final long WRITE_ORDER_LOCK = 6_017_001L;
+
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
     private final Clock clock;
@@ -75,6 +78,8 @@ public class IdentityEvents {
     /** RISC account-purged: the person is gone. No personal data at all, only the subject id. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void purged(UUID userId) {
+        // Privacy: the person's earlier lines (name, email, photo) keep only what happened, not who
+        jdbc.update("UPDATE identity.identity_events SET payload = '{}'::jsonb WHERE user_id = ?", userId);
         record(userId, IdentityEventType.ACCOUNT_PURGED, new LinkedHashMap<>());
     }
 
@@ -92,6 +97,10 @@ public class IdentityEvents {
         // The row lock this UPDATE takes also serialises two events of the same person: versions never collide
         Long version = jdbc.queryForObject("UPDATE identity.users SET identity_version = identity_version + 1"
                 + " WHERE id = ? RETURNING identity_version", Long.class, userId);
+        // One writer at a time until commit, so lines COMMIT in the order of their numbers (seq). Without this, line
+        // 11 could commit before line 10 and the delivery bookmark would move past 10 for ever (a lost event).
+        // Taken after the user row lock: always the same lock order, so no deadlock between writers.
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)::text", String.class, WRITE_ORDER_LOCK);
         jdbc.update("INSERT INTO identity.identity_events (user_id, user_version, event_type, payload, occurred_at)"
                         + " VALUES (?, ?, ?, ?::jsonb, ?)", userId, version, type.uri(), json.writeValueAsString(data),
                 Timestamp.from(clock.instant()));

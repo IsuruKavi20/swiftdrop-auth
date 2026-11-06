@@ -113,9 +113,12 @@ public class EmailVerificationService {
             throw new InvalidVerificationTokenException();
         }
         User verified = users.findById(stored.getUserId()).orElseThrow(InvalidVerificationTokenException::new);
+        boolean newlyProven = !verified.isEmailVerified();
         verified.markEmailVerified();
         // Only now does the person exist for SwiftDrop: a proven mailbox (same transaction as the change)
-        identityEvents.registered(verified);
+        if (newlyProven) {
+            identityEvents.registered(verified);
+        }
     }
 
     /** Never reveals whether the address has an account: callers always get the same answer. */

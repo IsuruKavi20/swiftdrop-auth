@@ -292,6 +292,35 @@
         }
       }
     },
+    "/api/v1/events/poll" : {
+      "post" : {
+        "tags" : [ "event-poll-controller" ],
+        "operationId" : "poll",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PollRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/directory/users/lookup" : {
       "post" : {
         "tags" : [ "directory-controller" ],
@@ -1248,6 +1277,50 @@
         },
         "required" : [ "current_password", "new_email" ]
       },
+      "PollRequest" : {
+        "type" : "object",
+        "properties" : {
+          "ack" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "maxItems" : 1000,
+            "minItems" : 0
+          },
+          "setErrs" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/SetError"
+            }
+          },
+          "maxEvents" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 0
+          },
+          "returnImmediately" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "SetError" : {
+        "type" : "object",
+        "properties" : {
+          "err" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          }
+        }
+      },
       "LookupBody" : {
         "type" : "object",
         "properties" : {
@@ -1421,11 +1494,9 @@
           "container" : {
             "type" : "boolean"
           },
-          "integralNumber" : {
-            "type" : "boolean"
-          },
-          "valueNode" : {
-            "type" : "boolean"
+          "nodeType" : {
+            "type" : "string",
+            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
           },
           "missingNode" : {
             "type" : "boolean"
@@ -1433,45 +1504,47 @@
           "bigDecimal" : {
             "type" : "boolean"
           },
-          "nodeType" : {
-            "type" : "string",
-            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
-          },
-          "floatingPointNumber" : {
+          "bigInteger" : {
             "type" : "boolean"
           },
-          "bigInteger" : {
+          "integralNumber" : {
+            "type" : "boolean"
+          },
+          "valueNode" : {
+            "type" : "boolean"
+          },
+          "floatingPointNumber" : {
             "type" : "boolean"
           },
           "number" : {
             "type" : "boolean"
           },
-          "long" : {
+          "string" : {
             "type" : "boolean"
           },
-          "string" : {
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "double" : {
+            "type" : "boolean"
+          },
+          "binary" : {
             "type" : "boolean"
           },
           "textual" : {
             "type" : "boolean",
             "deprecated" : true
           },
-          "int" : {
-            "type" : "boolean"
-          },
           "boolean" : {
-            "type" : "boolean"
-          },
-          "pojo" : {
-            "type" : "boolean"
-          },
-          "binary" : {
             "type" : "boolean"
           },
           "short" : {
             "type" : "boolean"
           },
-          "double" : {
+          "int" : {
+            "type" : "boolean"
+          },
+          "long" : {
             "type" : "boolean"
           },
           "embeddedValue" : {

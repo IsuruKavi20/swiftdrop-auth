@@ -33,7 +33,8 @@ public class RoleAdministration {
 
     private final IdentityEvents identityEvents;
 
-    public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions, IdentityEvents identityEvents) {
+    public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions,
+                              IdentityEvents identityEvents) {
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;

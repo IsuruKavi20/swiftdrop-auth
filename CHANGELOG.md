@@ -49,7 +49,8 @@ versions: [Semantic Versioning](https://semver.org/).
 - **Identity events, part 1** (identity step 6a/6b): every change to a person is recorded in `identity_events` in
   the same transaction (per-person version, V17), and can be signed as a Security Event Token (RFC 8417,
   `typ secevent+jwt`), and pushed to configured receivers (6c, RFC 8935: `swiftdrop.events.receivers`, https only,
-  retries with backoff, dead after 24 h, multi-pod safe with `SKIP LOCKED`, V18). Polling (6d) follows.
+  retries with backoff, dead after 24 h, multi-pod safe with `SKIP LOCKED`, V18), and collectable by polling
+  (6d, RFC 8936: `POST /api/v1/events/poll`, own receiver only, `events:read`; states DEAD vs REJECTED, V19).
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.
@@ -59,6 +60,10 @@ versions: [Semantic Versioning](https://semver.org/).
   bidi and control characters rejected with `400 invalid-name`). Clients must send the "Full name" field.
 
 ### Security
+- Step 6 review fixes: identity events commit in sequence order (no event can be skipped by the delivery
+  bookmark), deleting an account wipes the personal data of its earlier events, events older than 30 days are
+  deleted, sends are leased in small batches (no double send), a broken event can't block delivery, only real changes
+  are recorded, malformed poll ids answer 400.
 - Step 3 review fixes: every "my account" action requires an active account (a deleted/disabled account's
   still-valid token gets 401); deletion erases the email-change history; wrong passwords on sensitive actions use
   their own counter (V16) instead of the login lockout; undo links last 72 hours; deletion is idempotent and drops

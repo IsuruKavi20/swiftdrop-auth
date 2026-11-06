@@ -147,7 +147,7 @@ class EventDeliveryIT {
 
         delivery.deliverDue();
 
-        assertThat(status(eventId)).isEqualTo("DEAD");
+        assertThat(status(eventId)).as("final: never pushed or polled again").isEqualTo("REJECTED");
         assertThat(jdbc.queryForObject("SELECT last_error FROM identity.event_deliveries WHERE event_id = ?",
                 String.class, eventId)).contains("400");
     }
@@ -186,7 +186,71 @@ class EventDeliveryIT {
         }
     }
 
+    @Test
+    void anEventThatCommitsLateIsNeverSkipped() throws Exception {
+        UUID slow = newUser();
+        UUID fast = newUser();
+        CountDownLatch slowRecorded = new CountDownLatch(1);
+        CountDownLatch releaseSlow = new CountDownLatch(1);
+        ExecutorService writers = Executors.newFixedThreadPool(2);
+        // Transaction A records its event (taking the lower number) and then waits before committing
+        java.util.concurrent.Future<?> a = writers.submit(() -> transactions.executeWithoutResult(status -> {
+            events.purged(slow);
+            slowRecorded.countDown();
+            awaitQuietly(releaseSlow);
+        }));
+        assertThat(slowRecorded.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        // Transaction B records a later event; it must not be able to commit ahead of A
+        java.util.concurrent.Future<?> b = writers.submit(() ->
+                transactions.executeWithoutResult(status -> events.purged(fast)));
+        Thread.sleep(500);
+        delivery.deliverDue();   // without ordered commits, the queue's bookmark would jump past A's event here
+
+        releaseSlow.countDown();
+        a.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        b.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        writers.shutdown();
+        delivery.deliverDue();
+
+        assertThat(deliveryStatusOfUser(slow)).isEqualTo("DELIVERED");
+        assertThat(deliveryStatusOfUser(fast)).isEqualTo("DELIVERED");
+    }
+
+    @Test
+    void aBrokenEventDoesNotStopTheOthers() {
+        // A diary line whose data can't be turned into a SET (payload JSON null)
+        UUID broken = jdbc.queryForObject("INSERT INTO identity.identity_events (user_id, user_version, event_type,"
+                + " payload, occurred_at) VALUES (gen_random_uuid(), 1,"
+                + " 'https://schemas.swiftdrop.me/secevent/identity/profile-updated', 'null'::jsonb, now())"
+                + " RETURNING id", UUID.class);
+        UUID healthy = newEvent();
+
+        delivery.deliverDue();
+
+        assertThat(status(healthy)).isEqualTo("DELIVERED");
+        assertThat(status(broken)).as("retried later, then given up").isEqualTo("PENDING");
+        assertThat(attempts(broken)).isEqualTo(1);
+    }
+
     // ---- helpers ----
+
+    private UUID newUser() {
+        return transactions.execute(status -> users.saveAndFlush(
+                new User(EmailAddress.of("race-" + UUID.randomUUID() + "@example.com"), null)).getId());
+    }
+
+    private String deliveryStatusOfUser(UUID userId) {
+        return jdbc.queryForObject("SELECT d.status FROM identity.event_deliveries d JOIN identity.identity_events e"
+                + " ON e.id = d.event_id WHERE e.user_id = ?", String.class, userId);
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
 
     private UUID newEvent() {
         return transactions.execute(status -> {

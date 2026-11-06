@@ -114,7 +114,9 @@ public class SessionService {
     @Transactional
     public void endAllSessions(UUID userId, RevokeReason reason) {
         int revoked = tokens.revokeAllForUser(userId, reason, clock.instant());
-        identityEvents.sessionsRevoked(userId, reason.name());
+        if (revoked > 0) {
+            identityEvents.sessionsRevoked(userId, reason.name());
+        }
         log.info("All sessions ended: user={} reason={} tokens={}", userId, reason, revoked);
     }
 

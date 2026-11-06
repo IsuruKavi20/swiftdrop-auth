@@ -34,6 +34,10 @@ swiftdrop:
       - client-id: svc_swiftdrop-notify
         secret-sha256: 58450d65367c90e82abca5272c8743bdfe9d5d8d5d8ad0658c4a5d26206e01c3
         permissions: [directory:read, directory:read-email]
+      # The events receiver "swiftdrop-backend" polls with its own client (identity step 6d)
+      - client-id: svc_swiftdrop-backend
+        secret-sha256: 8bcdd9d25b5f9401bf586a43afd9b743f999315e97a367b95399d2486efe0502
+        permissions: [events:read]
   # Tests log in many times from 127.0.0.1; limits are tested on their own (RateLimitFilterTest, RateLimitIT)
   rate-limit:
     enabled: false
