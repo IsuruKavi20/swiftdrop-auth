@@ -3,14 +3,16 @@ package com.swiftdrop.auth.account;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
-/** Sends the email-change emails AFTER the request committed, asynchronously; failures stay in the outbox. */
+/** Sends the account-security emails AFTER the change committed, asynchronously; failures stay in the outbox. */
 @Component
 class EmailChangeListener {
 
     private final EmailChangeService emailChanges;
+    private final PasswordChangeService passwordChanges;
 
-    EmailChangeListener(EmailChangeService emailChanges) {
+    EmailChangeListener(EmailChangeService emailChanges, PasswordChangeService passwordChanges) {
         this.emailChanges = emailChanges;
+        this.passwordChanges = passwordChanges;
     }
 
     @ApplicationModuleListener
@@ -21,5 +23,10 @@ class EmailChangeListener {
     @ApplicationModuleListener
     void on(EmailChangeConfirmed event) {
         emailChanges.sendConfirmedEmails(event.requestId());
+    }
+
+    @ApplicationModuleListener
+    void on(PasswordChanged event) {
+        passwordChanges.sendPasswordChangedEmail(event.userId());
     }
 }

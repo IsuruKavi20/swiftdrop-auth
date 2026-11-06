@@ -171,7 +171,22 @@ swiftdrop:
       - {name: profile-edit, method: PATCH, path: /api/v1/me/profile, per-minute: 20}
       - {name: email-change, method: POST, path: /api/v1/me/email-change, per-minute: 5}
       - {name: email-change-confirm, method: POST, path: /api/v1/auth/email-change/confirm, per-minute: 20}
+      - {name: email-change-revert, method: POST, path: /api/v1/auth/email-change/revert, per-minute: 20}
+      - {name: password-change, method: POST, path: /api/v1/me/password, per-minute: 5}
+      - {name: data-export, method: GET, path: /api/v1/me/export, per-minute: 5}
+      - {name: account-delete, method: DELETE, path: /api/v1/me, per-minute: 5}
+      - {name: userinfo, method: GET, path: /oauth2/userinfo, per-minute: 60}
+      - {name: userinfo-post, method: POST, path: /oauth2/userinfo, per-minute: 60}
+      # Directory (service clients only); GET /users/{id} can't be expressed as an exact path (see the plan)
+      - {name: directory-list, method: GET, path: /api/v1/directory/users, per-minute: 120}
+      - {name: directory-lookup, method: POST, path: /api/v1/directory/users/lookup, per-minute: 120}
       - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
+  # Directory API service clients (identity step 5): SwiftDrop's backend logs in with client credentials.
+  # Per environment, from secrets (never in git): client-id (svc_...), secret-sha256 (hex SHA-256 of the secret,
+  # e.g. `printf '%s' "$SECRET" | sha256sum`), permissions (directory:read, optionally directory:read-email).
+  # Env form: SWIFTDROP_DIRECTORY_CLIENTS_0_CLIENTID, ..._0_SECRETSHA256, ..._0_PERMISSIONS_0
+  directory:
+    clients: []
   # Profile photos are shown to other people, so they may only point at trusted image hosts (no tracking pixels).
   # ".example.com" = any sub-domain of example.com; "img.example.com" = exactly that host.
   profile:

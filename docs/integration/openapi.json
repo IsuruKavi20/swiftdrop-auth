@@ -10,6 +10,40 @@
     "description" : "Generated server url"
   } ],
   "paths" : {
+    "/oauth2/userinfo" : {
+      "get" : {
+        "tags" : [ "user-info-controller" ],
+        "operationId" : "userInfo",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "user-info-controller" ],
+        "operationId" : "userInfo_1",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/users/{userId}/roles/{role}" : {
       "put" : {
         "tags" : [ "admin-user-controller" ],
@@ -209,6 +243,34 @@
         }
       }
     },
+    "/api/v1/me/password" : {
+      "post" : {
+        "tags" : [ "account-controller" ],
+        "operationId" : "changePassword",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PasswordChangeBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/email-change" : {
       "post" : {
         "tags" : [ "account-controller" ],
@@ -226,6 +288,35 @@
         "responses" : {
           "200" : {
             "description" : "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/directory/users/lookup" : {
+      "post" : {
+        "tags" : [ "directory-controller" ],
+        "operationId" : "lookup",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LookupBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
           }
         }
       }
@@ -412,6 +503,27 @@
         }
       }
     },
+    "/api/v1/auth/email-change/revert" : {
+      "post" : {
+        "tags" : [ "email-change-link-controller" ],
+        "operationId" : "revert",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LinkTokenBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/auth/email-change/confirm" : {
       "post" : {
         "tags" : [ "email-change-link-controller" ],
@@ -564,6 +676,103 @@
         }
       }
     },
+    "/api/v1/me/export" : {
+      "get" : {
+        "tags" : [ "account-controller" ],
+        "operationId" : "exportMyData",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/directory/users" : {
+      "get" : {
+        "tags" : [ "directory-controller" ],
+        "operationId" : "list",
+        "parameters" : [ {
+          "name" : "role",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "startIndex",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "count",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/directory/users/{id}" : {
+      "get" : {
+        "tags" : [ "directory-controller" ],
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/me" : {
       "get" : {
         "tags" : [ "me-controller" ],
@@ -611,7 +820,7 @@
     "/api/v1/admin/merchants" : {
       "get" : {
         "tags" : [ "admin-merchant-controller" ],
-        "operationId" : "list",
+        "operationId" : "list_1",
         "parameters" : [ {
           "name" : "status",
           "in" : "query",
@@ -632,6 +841,25 @@
                   "items" : {
                     "$ref" : "#/components/schemas/MerchantApplicationResponse"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/openid-configuration" : {
+      "get" : {
+        "tags" : [ "oidc-discovery-controller" ],
+        "operationId" : "discovery",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
                 }
               }
             }
@@ -670,6 +898,27 @@
             "type" : "string"
           }
         } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/me" : {
+      "delete" : {
+        "tags" : [ "account-controller" ],
+        "operationId" : "deleteMyAccount",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CurrentPasswordBody"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "OK"
@@ -794,6 +1043,39 @@
   },
   "components" : {
     "schemas" : {
+      "ProfileResponse" : {
+        "type" : "object",
+        "properties" : {
+          "sub" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "given_name" : {
+            "type" : "string"
+          },
+          "family_name" : {
+            "type" : "string"
+          },
+          "picture" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "email_verified" : {
+            "type" : "boolean"
+          },
+          "updated_at" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "AdminUserResponse" : {
         "type" : "object",
         "properties" : {
@@ -909,6 +1191,47 @@
           }
         }
       },
+      "PasswordChangeBody" : {
+        "type" : "object",
+        "properties" : {
+          "current_password" : {
+            "type" : "string",
+            "maxLength" : 1024,
+            "minLength" : 0
+          },
+          "new_password" : {
+            "type" : "string",
+            "maxLength" : 1024,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "current_password", "new_password" ]
+      },
+      "TokenResponse" : {
+        "type" : "object",
+        "properties" : {
+          "access_token" : {
+            "type" : "string"
+          },
+          "token_type" : {
+            "type" : "string"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "refresh_token" : {
+            "type" : "string"
+          },
+          "refresh_expires_in" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "id_token" : {
+            "type" : "string"
+          }
+        }
+      },
       "EmailChangeBody" : {
         "type" : "object",
         "properties" : {
@@ -924,6 +1247,21 @@
           }
         },
         "required" : [ "current_password", "new_email" ]
+      },
+      "LookupBody" : {
+        "type" : "object",
+        "properties" : {
+          "ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "ids" ]
       },
       "SignupRequest" : {
         "type" : "object",
@@ -964,28 +1302,6 @@
           }
         },
         "required" : [ "refresh_token" ]
-      },
-      "TokenResponse" : {
-        "type" : "object",
-        "properties" : {
-          "access_token" : {
-            "type" : "string"
-          },
-          "token_type" : {
-            "type" : "string"
-          },
-          "expires_in" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "refresh_token" : {
-            "type" : "string"
-          },
-          "refresh_expires_in" : {
-            "type" : "integer",
-            "format" : "int64"
-          }
-        }
       },
       "LoginRequest" : {
         "type" : "object",
@@ -1108,26 +1424,26 @@
           "number" : {
             "type" : "boolean"
           },
-          "string" : {
+          "integralNumber" : {
             "type" : "boolean"
           },
-          "double" : {
+          "bigDecimal" : {
             "type" : "boolean"
           },
-          "pojo" : {
+          "missingNode" : {
             "type" : "boolean"
           },
-          "boolean" : {
+          "nodeType" : {
+            "type" : "string",
+            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
+          },
+          "valueNode" : {
             "type" : "boolean"
           },
-          "binary" : {
+          "floatingPointNumber" : {
             "type" : "boolean"
           },
-          "textual" : {
-            "type" : "boolean",
-            "deprecated" : true
-          },
-          "int" : {
+          "bigInteger" : {
             "type" : "boolean"
           },
           "short" : {
@@ -1136,63 +1452,30 @@
           "long" : {
             "type" : "boolean"
           },
-          "missingNode" : {
+          "double" : {
             "type" : "boolean"
           },
-          "valueNode" : {
+          "textual" : {
+            "type" : "boolean",
+            "deprecated" : true
+          },
+          "binary" : {
             "type" : "boolean"
           },
-          "integralNumber" : {
+          "string" : {
             "type" : "boolean"
           },
-          "floatingPointNumber" : {
+          "int" : {
             "type" : "boolean"
           },
-          "bigDecimal" : {
+          "pojo" : {
             "type" : "boolean"
           },
-          "nodeType" : {
-            "type" : "string",
-            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
-          },
-          "bigInteger" : {
+          "boolean" : {
             "type" : "boolean"
           },
           "embeddedValue" : {
             "type" : "boolean"
-          }
-        }
-      },
-      "ProfileResponse" : {
-        "type" : "object",
-        "properties" : {
-          "sub" : {
-            "type" : "string"
-          },
-          "name" : {
-            "type" : "string"
-          },
-          "given_name" : {
-            "type" : "string"
-          },
-          "family_name" : {
-            "type" : "string"
-          },
-          "picture" : {
-            "type" : "string"
-          },
-          "locale" : {
-            "type" : "string"
-          },
-          "email" : {
-            "type" : "string"
-          },
-          "email_verified" : {
-            "type" : "boolean"
-          },
-          "updated_at" : {
-            "type" : "integer",
-            "format" : "int64"
           }
         }
       },
@@ -1229,6 +1512,17 @@
             }
           }
         }
+      },
+      "CurrentPasswordBody" : {
+        "type" : "object",
+        "properties" : {
+          "current_password" : {
+            "type" : "string",
+            "maxLength" : 1024,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "current_password" ]
       },
       "ProblemDetail" : {
         "type" : "object",

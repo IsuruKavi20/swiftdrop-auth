@@ -91,6 +91,23 @@ swiftdrop:
 Use `JwtValidators.createAtJwtValidator()`: Spring Security 7's default validator only accepts `typ: JWT` and rejects our
 `at+jwt` access tokens. A complete, tested example: the SwiftDrop repo, `backend/.../security/SecurityConfig.java`.)
 
+**Discovery (since 2026-11-06):** `GET <issuer>/.well-known/openid-configuration` lists `issuer`, `jwks_uri`,
+`token_endpoint` and `userinfo_endpoint` (OpenID Connect Discovery). Tools that support discovery need only the
+issuer URL. Keep the explicit settings above if you already have them: they keep working and pin the exact values.
+
+**For the frontend: the ID token.** Login, refresh and the Google exchange now also return `id_token` (OpenID
+Connect): a signed JWT for the FRONTEND with `name`, `email`, `email_verified`, `picture`, `locale`, `updated_at`.
+Read it to show who is logged in. **Never send it to an API**: it is `typ: JWT` with audience `swiftdrop-web`, so
+every API refuses it (401). APIs always get the `access_token`. `GET/POST <issuer>/oauth2/userinfo` with the access
+token returns the same claims.
+
+**Directory API (for SwiftDrop's backend, since 2026-11-06).** To show who a person is (name, photo, active,
+roles) without storing copies: log in as a **service client** (`POST /oauth2/token`, HTTP Basic with your `svc_…`
+id and secret, `grant_type=client_credentials`), then call `GET /api/v1/directory/users/{id}`,
+`POST /api/v1/directory/users/lookup {"ids":[…≤100]}` or `GET /api/v1/directory/users?role=COURIER&count=50`.
+Email is included only if your client has `directory:read-email` (only the notification part should). Ask the auth
+owner for credentials; never put the secret in git. User tokens (even admins') can't use these endpoints.
+
 ## 4. Security configuration (copy into your service)
 ```java
 @Configuration

@@ -80,6 +80,16 @@ public class User {
     @Column(name = "profile_updated_at")
     private Instant profileUpdatedAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    // Wrong passwords on sensitive actions only (never the login lockout): see Reauthentication
+    @Column(name = "reauth_failure_count", nullable = false)
+    private int reauthFailureCount;
+
+    @Column(name = "reauth_locked_until")
+    private Instant reauthLockedUntil;
+
     // Timestamps come from the application clock (all writes go through JPA). The DB defaults
     // are only a safety net for raw SQL inserts; raw SQL updates do not refresh updated_at.
     @CreationTimestamp
@@ -172,6 +182,34 @@ public class User {
                 profile.givenName().map(PersonName::value).orElse(null),
                 profile.familyName().map(PersonName::value).orElse(null),
                 profile.pictureUrl().orElse(null), profile.locale().orElse(null), ProfileSource.USER, now);
+    }
+
+    /**
+     * "Delete my account" (identity step 3e): the row becomes a tombstone. Login is impossible (no password,
+     * status DELETED), the profile is gone, and the real address is replaced so it is no longer stored and is free
+     * for a new account. Only the id stays, so the rest of the erasure can still find the person (step 8).
+     */
+    public void beginDeletion(Instant now) {
+        this.status = UserStatus.DELETED;
+        this.deletedAt = now;
+        this.passwordHash = null;
+        this.email = "deleted-" + id + "@deleted.invalid";
+        this.emailVerified = false;
+        // A tombstone holds no rights: it must never count as e.g. "the last admin"
+        this.roles.clear();
+        replaceProfile(null, null, null, null, null, null, now);
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public int getReauthFailureCount() {
+        return reauthFailureCount;
+    }
+
+    public Instant getReauthLockedUntil() {
+        return reauthLockedUntil;
     }
 
     /** Forget the profile entirely, e.g. a name typed by someone who never proved they own this mailbox. */

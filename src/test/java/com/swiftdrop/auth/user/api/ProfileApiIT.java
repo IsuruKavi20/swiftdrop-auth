@@ -56,6 +56,9 @@ class ProfileApiIT {
     @Autowired
     private AccessTokenIssuer issuer;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @Test
     void readsMyProfileWithStandardClaimNamesAndAnEtag() throws Exception {
         UUID id = userNamed("Nimal Perera");
@@ -165,6 +168,18 @@ class ProfileApiIT {
         edit(id, etagOf(id), "{\"name\":42}").andExpect(status().isBadRequest());
 
         assertThat(users.findWithRolesById(id).orElseThrow().roleNames()).as("roles untouched").isEmpty();
+    }
+
+    @Test
+    void aDisabledOrDeletedAccountsStillValidTokenCanNeitherReadNorEdit() throws Exception {
+        UUID id = userNamed("Nimal Perera");
+        String etag = etagOf(id);
+        jdbc.update("UPDATE identity.users SET status = 'DISABLED' WHERE id = ?", id);
+
+        read(id).andExpect(status().isUnauthorized());
+        edit(id, etag, "{\"name\":\"Back From The Dead\"}").andExpect(status().isUnauthorized());
+
+        assertThat(users.findById(id).orElseThrow().getName()).isEqualTo("Nimal Perera");
     }
 
     @Test

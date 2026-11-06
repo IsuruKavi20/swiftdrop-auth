@@ -12,6 +12,7 @@ import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.ADDRESS_ALREAD
 import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.CHANGE_REQUESTED;
 import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.CONFIRM_NEW_EMAIL;
 import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.EMAIL_CHANGED;
+import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.PASSWORD_CHANGED;
 
 /** SMTP adapter (Mailpit in development, Brevo in production). Plain text, a link and nothing personal. */
 @Component
@@ -66,8 +67,17 @@ class SmtpSecurityEmails implements SecurityEmails {
                 If this wasn't you, open this link to undo it. It also logs everyone out of your account:
                 %s
 
-                The link works once, for 7 days. Then log in with this address and change your password.
+                The link works once, for 3 days. Then log in with this address and change your password.
                 """.formatted(maskedNewEmail, undoLink));
+    }
+
+    @Override
+    public void sendPasswordChanged(EmailAddress to) {
+        send(to, PASSWORD_CHANGED, """
+                Your SwiftDrop password was just changed, and every other device was logged out.
+
+                If this was not you, someone has access to your account: contact SwiftDrop support right away.
+                """);
     }
 
     private void send(EmailAddress to, String subject, String body) {

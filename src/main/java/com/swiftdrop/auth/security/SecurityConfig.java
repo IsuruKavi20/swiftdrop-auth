@@ -83,7 +83,8 @@ public class SecurityConfig {
                         // Dev-only test tokens: this path only has a handler when DevTestTokenController exists
                         .requestMatchers(HttpMethod.POST, ApiPaths.V1 + "/dev/test-tokens").permitAll()
                         // Our public key set: other services download it to verify tokens
-                        .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json", "/.well-known/openid-configuration")
+                        .permitAll()
                         // API docs: only exist when springdoc is enabled (dev); elsewhere these paths are 404
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                         .permitAll()

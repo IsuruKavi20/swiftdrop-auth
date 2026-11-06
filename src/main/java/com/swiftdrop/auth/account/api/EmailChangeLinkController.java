@@ -29,4 +29,11 @@ public class EmailChangeLinkController {
     public void confirm(@Valid @RequestBody LinkTokenBody body) {
         emailChanges.confirm(body.token());
     }
+
+    /** The undo link from the old inbox: restores the old address and logs everyone out. */
+    @PostMapping(value = ApiPaths.AUTH + "/email-change/revert", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revert(@Valid @RequestBody LinkTokenBody body) {
+        emailChanges.revert(body.token());
+    }
 }

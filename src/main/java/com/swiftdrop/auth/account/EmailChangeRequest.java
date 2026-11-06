@@ -87,6 +87,22 @@ class EmailChangeRequest {
         this.revertExpiresAt = expiresAt;
     }
 
+    Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    Instant getConfirmedAt() {
+        return confirmedAt;
+    }
+
+    Instant getRevertedAt() {
+        return revertedAt;
+    }
+
+    Instant getCancelledAt() {
+        return cancelledAt;
+    }
+
     UUID getId() {
         return id;
     }

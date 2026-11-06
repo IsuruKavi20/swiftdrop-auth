@@ -89,7 +89,7 @@ class EmailChangeRequestIT {
     }
 
     @Test
-    void aWrongPasswordIsRefusedAndCountsTowardTheLockout() throws Exception {
+    void aWrongPasswordIsRefusedAndCountedWithoutTouchingTheLoginLockout() throws Exception {
         String newEmail = uniqueEmail();
         UUID id = userWithPassword(uniqueEmail());
 
@@ -97,10 +97,28 @@ class EmailChangeRequestIT {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("REAUTHENTICATION_FAILED"));
 
+        assertThat(jdbc.queryForObject("SELECT reauth_failure_count FROM identity.users WHERE id = ?", Integer.class,
+                id)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT failed_login_count FROM identity.users WHERE id = ?", Integer.class, id))
-                .isEqualTo(1);
+                .as("a thief with a stolen token must not be able to lock the owner out of logging in").isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM identity.email_change_requests WHERE user_id = ?",
                 Integer.class, id)).isZero();
+    }
+
+    @Test
+    void fiveWrongPasswordsPauseSensitiveChangesButNotLogin() throws Exception {
+        String email = uniqueEmail();
+        UUID id = userWithPassword(email);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            requestChange(id, uniqueEmail(), "not the right password at all").andExpect(status().isForbidden());
+        }
+
+        requestChange(id, uniqueEmail(), PASSWORD).andExpect(status().isForbidden())   // even the right one, for now
+                .andExpect(jsonPath("$.code").value("REAUTHENTICATION_FAILED"));
+
+        mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test

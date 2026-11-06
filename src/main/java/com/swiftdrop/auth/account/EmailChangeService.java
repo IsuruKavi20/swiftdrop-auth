@@ -4,6 +4,8 @@ import com.swiftdrop.auth.common.crypto.OpaqueTokens;
 import com.swiftdrop.auth.common.web.FrontendProperties;
 import com.swiftdrop.auth.login.Reauthentication;
 import com.swiftdrop.auth.login.ReauthenticationFailedException;
+import com.swiftdrop.auth.session.RevokeReason;
+import com.swiftdrop.auth.session.SessionService;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
@@ -31,11 +33,13 @@ public class EmailChangeService {
     private static final Duration COOLDOWN = Duration.ofSeconds(60);
     private static final int MAX_PER_DAY = 5;
     private static final String CONFIRM_PATH = "/confirm-email-change";
-    static final Duration REVERT_TTL = Duration.ofDays(7);
+    // 72 hours (not 7 days): less time for someone who later gets the OLD mailbox to misuse the link
+    static final Duration REVERT_TTL = Duration.ofHours(72);
     private static final String REVERT_PATH = "/revert-email-change";
     private static final Logger log = LoggerFactory.getLogger(EmailChangeService.class);
 
     private final Reauthentication reauthentication;
+    private final SessionService sessions;
     private final UserRepository users;
     private final EmailChangeRequestRepository requests;
     private final ApplicationEventPublisher events;
@@ -44,10 +48,12 @@ public class EmailChangeService {
     private final FrontendProperties frontend;
     private final Clock clock;
 
-    EmailChangeService(Reauthentication reauthentication, UserRepository users, EmailChangeRequestRepository requests,
-                       ApplicationEventPublisher events, TransactionTemplate transactions, SecurityEmails emails,
-                       FrontendProperties frontend, Clock clock) {
+    EmailChangeService(Reauthentication reauthentication, SessionService sessions, UserRepository users,
+                       EmailChangeRequestRepository requests, ApplicationEventPublisher events,
+                       TransactionTemplate transactions, SecurityEmails emails, FrontendProperties frontend,
+                       Clock clock) {
         this.reauthentication = reauthentication;
+        this.sessions = sessions;
         this.users = users;
         this.requests = requests;
         this.events = events;
@@ -66,7 +72,7 @@ public class EmailChangeService {
 
     private void record(UUID userId, EmailAddress newEmail) {
         Instant now = clock.instant();
-        User user = users.lockById(userId).orElseThrow(ReauthenticationFailedException::new);
+        User user = users.lockById(userId).filter(User::isUsable).orElseThrow(ReauthenticationFailedException::new);
         if (user.getEmail().equals(newEmail.value())) {
             throw new EmailUnchangedException();
         }
@@ -87,7 +93,7 @@ public class EmailChangeService {
     /** From the outbox listener. Safe to run twice: a request whose link was already issued is skipped. */
     @Transactional
     public void sendRequestEmails(UUID requestId) {
-        EmailChangeRequest request = requests.findById(requestId).orElse(null);
+        EmailChangeRequest request = requests.lockById(requestId).orElse(null);
         if (request == null || !request.isOpenAt(clock.instant()) || request.hasConfirmToken()) {
             return;
         }
@@ -118,7 +124,8 @@ public class EmailChangeService {
                 .orElseThrow(InvalidEmailChangeLinkException::new);
         User user = users.lockById(request.getUserId()).orElseThrow(InvalidEmailChangeLinkException::new);
         // The account must still have the address the request started from, and the new one must still be free
-        if (!user.getEmail().equals(request.getOldEmail()) || users.existsByEmail(request.getNewEmail())) {
+        if (!user.isUsable() || !user.getEmail().equals(request.getOldEmail())
+                || users.existsByEmail(request.getNewEmail())) {
             throw new InvalidEmailChangeLinkException();
         }
         // Single use, also under concurrency: only one confirmation can turn the open request into confirmed
@@ -136,10 +143,47 @@ public class EmailChangeService {
         log.info("Email changed user={} request={}", user.getId(), request.getId());
     }
 
+    /**
+     * The undo link from the OLD inbox: restores the old address and ends every session, so whoever made the
+     * change is logged out. It wins even if the email was changed again since (an attacker staying one step
+     * ahead), and it cancels any open change request.
+     */
+    @Transactional
+    public void revert(String token) {
+        if (!OpaqueTokens.isWellFormed(token)) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        Instant now = clock.instant();
+        EmailChangeRequest request = requests.findByRevertTokenHash(OpaqueTokens.hash(token))
+                .orElseThrow(InvalidEmailChangeLinkException::new);
+        // A deleted or disabled account is never brought back by a link (it would restore erased data)
+        User user = users.lockById(request.getUserId()).filter(User::isUsable)
+                .orElseThrow(InvalidEmailChangeLinkException::new);
+        if (requests.revertIfOpen(request.getId(), now) != 1) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        boolean takenByAnother = users.findIdByEmail(request.getOldEmail())
+                .filter(owner -> !owner.equals(user.getId())).isPresent();
+        if (takenByAnother) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        user.changeEmail(EmailAddress.of(request.getOldEmail()));
+        try {
+            users.saveAndFlush(user);
+        } catch (DataIntegrityViolationException takenAtTheSameMoment) {
+            throw new InvalidEmailChangeLinkException();
+        }
+        // Last: cancelOpen clears the persistence context, so nothing below may use the entities read above
+        requests.cancelOpen(user.getId(), now);
+        sessions.endAllSessions(user.getId(), RevokeReason.EMAIL_CHANGE_UNDONE);
+        log.warn("Email change undone by the old address, all sessions ended user={} request={}",
+                user.getId(), request.getId());
+    }
+
     /** From the outbox listener: the undo link to the old address. The raw token never touches the outbox table. */
     @Transactional
     public void sendConfirmedEmails(UUID requestId) {
-        EmailChangeRequest request = requests.findById(requestId).orElse(null);
+        EmailChangeRequest request = requests.lockById(requestId).orElse(null);
         if (request == null || request.hasRevertToken()) {
             return;
         }

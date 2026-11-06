@@ -5,12 +5,17 @@ import com.swiftdrop.auth.token.TokenResponse;
 
 import java.time.Duration;
 
-/** What a login or refresh hands out: a short access token and the next refresh token. */
-public record SessionTokens(IssuedToken accessToken, String refreshToken, Duration refreshExpiresIn) {
+/** What a login or refresh hands out: a short access token, the next refresh token, and the OIDC ID token. */
+public record SessionTokens(IssuedToken accessToken, String refreshToken, Duration refreshExpiresIn, String idToken) {
+
+    /** Without an ID token (tests and callers that don't need one). */
+    public SessionTokens(IssuedToken accessToken, String refreshToken, Duration refreshExpiresIn) {
+        this(accessToken, refreshToken, refreshExpiresIn, null);
+    }
 
     public TokenResponse toResponse() {
         return TokenResponse.bearer(accessToken.value(), accessToken.expiresIn().toSeconds(),
-                refreshToken, refreshExpiresIn.toSeconds());
+                refreshToken, refreshExpiresIn.toSeconds(), idToken);
     }
 
     @Override

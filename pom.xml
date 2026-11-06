@@ -217,6 +217,11 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<!-- Bounded test JVM: by default its heap may grow to 1/4 of RAM, which (with Docker and an IDE
+					     open) exhausted a 16 GB laptop. 1 GB is plenty with at most 6 cached Spring contexts. -->
+					<argLine>-Xmx1g -XX:MaxMetaspaceSize=384m</argLine>
+				</configuration>
 				<executions>
 					<execution>
 						<goals>

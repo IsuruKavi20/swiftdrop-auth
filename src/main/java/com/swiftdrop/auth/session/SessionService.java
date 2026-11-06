@@ -2,6 +2,8 @@ package com.swiftdrop.auth.session;
 
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
+import com.swiftdrop.auth.token.IdTokenIssuer;
+import com.swiftdrop.auth.token.IdentityClaims;
 import com.swiftdrop.auth.token.IssuedToken;
 import com.swiftdrop.auth.token.PersonClaims;
 import com.swiftdrop.auth.user.User;
@@ -29,14 +31,16 @@ public class SessionService {
     private final RefreshTokenRepository tokens;
     private final UserRepository users;
     private final AccessTokenIssuer accessTokens;
+    private final IdTokenIssuer idTokens;
     private final SessionProperties properties;
     private final Clock clock;
 
     SessionService(RefreshTokenRepository tokens, UserRepository users, AccessTokenIssuer accessTokens,
-                   SessionProperties properties, Clock clock) {
+                   IdTokenIssuer idTokens, SessionProperties properties, Clock clock) {
         this.tokens = tokens;
         this.users = users;
         this.accessTokens = accessTokens;
+        this.idTokens = idTokens;
         this.properties = properties;
         this.clock = clock;
     }
@@ -118,6 +122,9 @@ public class SessionService {
         // Identity claims come from the user row read for this login/refresh: a changed name shows up next refresh
         PersonClaims person = new PersonClaims(user.getEmail(), user.isEmailVerified(), user.getName());
         IssuedToken access = accessTokens.issue(user.getId(), person, user.roleNames(), user.permissionNames());
-        return new SessionTokens(access, refreshToken, Duration.between(now, expiresAt));
+        String idToken = idTokens.issue(user.getId(), new IdentityClaims(user.getEmail(), user.isEmailVerified(),
+                user.getName(), user.getGivenName(), user.getFamilyName(), user.getPictureUrl(), user.getLocale(),
+                user.getProfileUpdatedAt()));
+        return new SessionTokens(access, refreshToken, Duration.between(now, expiresAt), idToken);
     }
 }

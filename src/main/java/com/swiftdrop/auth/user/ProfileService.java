@@ -36,14 +36,14 @@ public class ProfileService {
 
     @Transactional(readOnly = true)
     public ProfileView get(UUID userId) {
-        return view(users.findById(userId).orElseThrow(ProfileService::noSuchUser));
+        return view(users.findById(userId).filter(User::isUsable).orElseThrow(ProfileService::noSuchUser));
     }
 
     /** @param ifMatch the ETag the client read; required (the controller answers 428 without it) */
     @Transactional
     public ProfileView update(UUID userId, String ifMatch, ProfilePatch patch) {
         // Locked: a second edit at the same moment waits, then sees the new ETag and gets 412
-        User user = users.lockById(userId).orElseThrow(ProfileService::noSuchUser);
+        User user = users.lockById(userId).filter(User::isUsable).orElseThrow(ProfileService::noSuchUser);
         if (!etagOf(user).equals(ifMatch)) {
             throw new ProfileChangedException();
         }
@@ -90,7 +90,8 @@ public class ProfileService {
         }
     }
 
-    // A valid token for a user that no longer exists: treated like an invalid token (401), revealing nothing
+    // A valid token for a user that no longer exists or is no longer active (deleted, disabled): treated like an
+    // invalid token (401). Otherwise a deleted account could write personal data back onto its tombstone.
     private static BadCredentialsException noSuchUser() {
         return new BadCredentialsException("Token user does not exist");
     }

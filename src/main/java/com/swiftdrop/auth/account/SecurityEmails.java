@@ -21,4 +21,7 @@ interface SecurityEmails {
 
     /** To the OLD address after the change: what happened, and the undo link. */
     void sendEmailChanged(EmailAddress to, String maskedNewEmail, URI undoLink);
+
+    /** After a password change: what happened, and what to do if it wasn't the owner. */
+    void sendPasswordChanged(EmailAddress to);
 }
