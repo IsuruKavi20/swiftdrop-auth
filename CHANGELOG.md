@@ -56,6 +56,13 @@ versions: [Semantic Versioning](https://semver.org/).
   (COURIER or DISPATCHER; one open per role; 7 days after a rejection; separation of duties: never COURIER and
   DISPATCHER together, also enforced by the admin grant endpoint). Permissions `role:approve-courier` (ADMIN,
   DISPATCHER) and `role:approve-dispatcher` (ADMIN). V20.
+- **Role application decisions** (identity step 7b): `GET /api/v1/admin/role-applications` (only roles the caller may
+  decide) and `POST …/{id}/decision` (APPROVE/REJECT with reason; no self-approval, enforced server-side; applicant
+  re-checked at decision time; role + "roles changed" event in one transaction). The applicant is emailed the
+  decision (with the reason) through the outbox (7c).
+- **Role application hardening** (identity step 7d): decisions lock before reading (no lost concurrent decision),
+  the approver is re-checked in the database, withdraw locks, queue `count` 1–100 (default 50), nobody grants a role
+  to themselves (`CANNOT_GRANT_OWN_ROLE`), control characters removed from notes/reasons, queue rate limit 60/min.
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.

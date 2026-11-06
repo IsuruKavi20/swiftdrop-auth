@@ -56,6 +56,10 @@ public class RoleAdministration {
             // Merchants are approved through their own flow (Step 13), never by a bare role grant
             throw new AdminException(ErrorCode.ROLE_NOT_ASSIGNABLE);
         }
+        if (actorId.equals(userId)) {
+            // Four-eyes: nobody gives roles to themselves (the same rule as role applications)
+            throw new AdminException(ErrorCode.CANNOT_GRANT_OWN_ROLE);
+        }
         User user = load(userId);
         if (!user.isEmailVerified() || user.getStatus() != UserStatus.ACTIVE) {
             // Same rule as AdminBootstrap: a role (above all ADMIN) only goes to a proven, active account

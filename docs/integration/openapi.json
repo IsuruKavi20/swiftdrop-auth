@@ -621,6 +621,43 @@
         }
       }
     },
+    "/api/v1/admin/role-applications/{id}/decision" : {
+      "post" : {
+        "tags" : [ "role-application-admin-controller" ],
+        "operationId" : "decide",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RoleApplicationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/merchants/{merchantId}/status" : {
       "post" : {
         "tags" : [ "admin-merchant-controller" ],
@@ -661,7 +698,7 @@
     "/api/v1/admin/merchants/{merchantId}/decision" : {
       "post" : {
         "tags" : [ "admin-merchant-controller" ],
-        "operationId" : "decide",
+        "operationId" : "decide_1",
         "parameters" : [ {
           "name" : "merchantId",
           "in" : "path",
@@ -886,6 +923,54 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminUserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/role-applications" : {
+      "get" : {
+        "tags" : [ "role-application-admin-controller" ],
+        "operationId" : "queue",
+        "parameters" : [ {
+          "name" : "role",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "COURIER", "DISPATCHER" ]
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "PENDING",
+            "enum" : [ "PENDING", "APPROVED", "REJECTED", "WITHDRAWN" ]
+          }
+        }, {
+          "name" : "count",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ApplicationForApprover"
+                  }
                 }
               }
             }
@@ -1562,6 +1647,21 @@
         },
         "required" : [ "token" ]
       },
+      "DecisionBody" : {
+        "type" : "object",
+        "properties" : {
+          "decision" : {
+            "type" : "string",
+            "enum" : [ "APPROVE", "REJECT" ]
+          },
+          "reason" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "decision" ]
+      },
       "MerchantStatusRequest" : {
         "type" : "object",
         "properties" : {
@@ -1610,6 +1710,24 @@
           "number" : {
             "type" : "boolean"
           },
+          "int" : {
+            "type" : "boolean"
+          },
+          "binary" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "double" : {
+            "type" : "boolean"
+          },
+          "string" : {
+            "type" : "boolean"
+          },
+          "long" : {
+            "type" : "boolean"
+          },
           "textual" : {
             "type" : "boolean",
             "deprecated" : true
@@ -1617,47 +1735,29 @@
           "boolean" : {
             "type" : "boolean"
           },
-          "binary" : {
-            "type" : "boolean"
-          },
           "short" : {
             "type" : "boolean"
           },
-          "int" : {
+          "floatingPointNumber" : {
             "type" : "boolean"
           },
-          "string" : {
+          "valueNode" : {
             "type" : "boolean"
           },
-          "double" : {
-            "type" : "boolean"
-          },
-          "long" : {
-            "type" : "boolean"
-          },
-          "pojo" : {
+          "bigDecimal" : {
             "type" : "boolean"
           },
           "nodeType" : {
             "type" : "string",
             "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
           },
-          "integralNumber" : {
-            "type" : "boolean"
-          },
-          "valueNode" : {
-            "type" : "boolean"
-          },
           "missingNode" : {
-            "type" : "boolean"
-          },
-          "bigDecimal" : {
             "type" : "boolean"
           },
           "bigInteger" : {
             "type" : "boolean"
           },
-          "floatingPointNumber" : {
+          "integralNumber" : {
             "type" : "boolean"
           },
           "embeddedValue" : {
@@ -1696,6 +1796,52 @@
             "items" : {
               "type" : "string"
             }
+          }
+        }
+      },
+      "Applicant" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ApplicationForApprover" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "CUSTOMER", "MERCHANT", "COURIER", "DISPATCHER", "ADMIN" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "APPROVED", "REJECTED", "WITHDRAWN" ]
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "applicant" : {
+            "$ref" : "#/components/schemas/Applicant"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decided_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decision_reason" : {
+            "type" : "string"
           }
         }
       },

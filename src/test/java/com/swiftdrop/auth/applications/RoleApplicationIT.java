@@ -129,6 +129,16 @@ class RoleApplicationIT {
     }
 
     @Test
+    void nobodyGrantsARoleToThemselvesEvenAnAdmin() {
+        UUID admin = person(RoleName.CUSTOMER, RoleName.ADMIN);
+
+        assertThatThrownBy(() -> roleAdministration.grant(admin, admin, RoleName.COURIER))
+                .isInstanceOf(com.swiftdrop.auth.common.error.DomainException.class)
+                .extracting(e -> ((com.swiftdrop.auth.common.error.DomainException) e).errorCode())
+                .isEqualTo(com.swiftdrop.auth.common.error.ErrorCode.CANNOT_GRANT_OWN_ROLE);
+    }
+
+    @Test
     void afterARejectionTheApplicantWaitsSevenDays() throws Exception {
         UUID id = person(RoleName.CUSTOMER);
         UUID applicationId = idOf(apply(id, "{\"role\":\"COURIER\"}"));
