@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.account;
 
 import com.swiftdrop.auth.common.concurrency.Bulkhead;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.login.Reauthentication;
 import com.swiftdrop.auth.login.ReauthenticationFailedException;
 import com.swiftdrop.auth.session.RevokeReason;
@@ -41,10 +42,12 @@ public class PasswordChangeService {
     private final SecurityEmails emails;
     private final Clock clock;
 
+    private final IdentityEvents identityEvents;
+
     PasswordChangeService(Reauthentication reauthentication, PasswordPolicy policy, PasswordEncoder encoder,
                           Bulkhead passwordWork, UserRepository users, SessionService sessions,
                           ApplicationEventPublisher events, TransactionTemplate transactions, SecurityEmails emails,
-                          Clock clock) {
+                          Clock clock, IdentityEvents identityEvents) {
         this.reauthentication = reauthentication;
         this.policy = policy;
         this.encoder = encoder;
@@ -55,6 +58,7 @@ public class PasswordChangeService {
         this.transactions = transactions;
         this.emails = emails;
         this.clock = clock;
+        this.identityEvents = identityEvents;
     }
 
     /** Slow work (Argon2 twice, the breach check) runs before the short database transaction. */
@@ -73,6 +77,7 @@ public class PasswordChangeService {
                     || users.replacePasswordHash(userId, verifiedHash, newHash, clock.instant()) != 1) {
                 throw new PasswordChangedMeanwhileException();   // someone changed it meanwhile: start again
             }
+            identityEvents.passwordChanged(userId);
             sessions.endAllSessions(userId, RevokeReason.PASSWORD_CHANGED);
             events.publishEvent(new PasswordChanged(userId));
             log.info("Password changed, all sessions ended user={}", userId);

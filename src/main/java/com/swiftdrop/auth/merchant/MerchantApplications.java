@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.merchant;
 
 import com.swiftdrop.auth.common.error.ErrorCode;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.session.RevokeReason;
 import com.swiftdrop.auth.session.SessionService;
 import com.swiftdrop.auth.user.RoleName;
@@ -37,13 +38,16 @@ public class MerchantApplications {
     private final SessionService sessions;
     private final Clock clock;
 
+    private final IdentityEvents identityEvents;
+
     MerchantApplications(MerchantRepository merchants, UserRepository users, RoleRepository roles,
-                         SessionService sessions, Clock clock) {
+                         SessionService sessions, Clock clock, IdentityEvents identityEvents) {
         this.merchants = merchants;
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;
         this.clock = clock;
+        this.identityEvents = identityEvents;
     }
 
     /** The business details we need to decide; nothing more (the merchant service keeps the shop profile). */
@@ -125,6 +129,7 @@ public class MerchantApplications {
             merchant.approve(adminId, now);
             if (!owner.hasRole(RoleName.MERCHANT)) {
                 owner.addRole(roles.findByName(RoleName.MERCHANT).orElseThrow());
+                identityEvents.rolesChanged(owner);
             }
             log.info("Merchant approved: merchant={} by={}", merchantId, adminId);
         } else {
@@ -152,12 +157,14 @@ public class MerchantApplications {
         if (change == StatusChange.SUSPEND && merchant.getStatus() == MerchantStatus.APPROVED) {
             merchant.suspend(adminId, now);
             owner.removeRole(RoleName.MERCHANT);
+            identityEvents.rolesChanged(owner);
             sessions.endAllSessions(ownerId, RevokeReason.ROLE_CHANGED);
             log.warn("Merchant suspended: merchant={} by={}", merchantId, adminId);
         } else if (change == StatusChange.REINSTATE && merchant.getStatus() == MerchantStatus.SUSPENDED) {
             merchant.reinstate(adminId, now);
             if (!owner.hasRole(RoleName.MERCHANT)) {
                 owner.addRole(roles.findByName(RoleName.MERCHANT).orElseThrow());
+                identityEvents.rolesChanged(owner);
             }
             log.info("Merchant reinstated: merchant={} by={}", merchantId, adminId);
         } else {

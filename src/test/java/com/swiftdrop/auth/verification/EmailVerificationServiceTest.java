@@ -60,7 +60,7 @@ class EmailVerificationServiceTest {
     void setUp() {
         service = new EmailVerificationService(users, tokens, sender, events,
                 new VerificationProperties(TTL, COOLDOWN, MAX_PER_DAY), new FrontendProperties(FRONTEND),
-                Clock.fixed(NOW, ZoneOffset.UTC), TransactionOperations.withoutTransaction());
+                Clock.fixed(NOW, ZoneOffset.UTC), TransactionOperations.withoutTransaction(), org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class));
     }
 
     @Test

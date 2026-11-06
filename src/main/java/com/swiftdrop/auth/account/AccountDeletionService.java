@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.account;
 
 import com.swiftdrop.auth.login.Reauthentication;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.login.ReauthenticationFailedException;
 import com.swiftdrop.auth.session.RevokeReason;
 import com.swiftdrop.auth.session.SessionService;
@@ -36,9 +37,11 @@ public class AccountDeletionService {
     private final TransactionTemplate transactions;
     private final Clock clock;
 
+    private final IdentityEvents identityEvents;
+
     AccountDeletionService(Reauthentication reauthentication, UserRepository users,
                            EmailChangeRequestRepository emailChanges, SessionService sessions,
-                           ApplicationEventPublisher events, TransactionTemplate transactions, Clock clock) {
+                           ApplicationEventPublisher events, TransactionTemplate transactions, Clock clock, IdentityEvents identityEvents) {
         this.reauthentication = reauthentication;
         this.users = users;
         this.emailChanges = emailChanges;
@@ -46,6 +49,7 @@ public class AccountDeletionService {
         this.events = events;
         this.transactions = transactions;
         this.clock = clock;
+        this.identityEvents = identityEvents;
     }
 
     public void delete(UUID userId, String currentPassword) {
@@ -61,6 +65,7 @@ public class AccountDeletionService {
             // Erases the old/new addresses and every link hash: an old undo link can't restore the address
             emailChanges.deleteByUserId(userId);
             sessions.endAllSessions(userId, RevokeReason.ACCOUNT_DELETED);
+            identityEvents.purged(userId);
             events.publishEvent(new AccountDeleted(userId));
             log.info("Account deleted (tombstone kept) user={}", userId);
         });

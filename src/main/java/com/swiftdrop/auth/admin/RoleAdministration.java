@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.admin;
 
 import com.swiftdrop.auth.common.error.DomainException;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.common.error.ErrorCode;
 import com.swiftdrop.auth.session.RevokeReason;
 import com.swiftdrop.auth.session.SessionService;
@@ -30,10 +31,13 @@ public class RoleAdministration {
     private final RoleRepository roles;
     private final SessionService sessions;
 
-    public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions) {
+    private final IdentityEvents identityEvents;
+
+    public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions, IdentityEvents identityEvents) {
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;
+        this.identityEvents = identityEvents;
     }
 
     @Transactional(readOnly = true)
@@ -57,6 +61,7 @@ public class RoleAdministration {
         }
         if (!user.hasRole(role)) {
             user.addRole(roles.findByName(role).orElseThrow());
+            identityEvents.rolesChanged(user);
             log.info("Role granted: role={} user={} by={}", role, userId, actorId);
         }
         return UserView.of(user);
@@ -88,6 +93,7 @@ public class RoleAdministration {
             }
         }
         user.removeRole(role);
+        identityEvents.rolesChanged(user);
         sessions.endAllSessions(userId, RevokeReason.ROLE_CHANGED);
         log.info("Role revoked: role={} user={} by={}", role, userId, actorId);
         return UserView.of(user);

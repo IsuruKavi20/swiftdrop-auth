@@ -46,6 +46,10 @@ versions: [Semantic Versioning](https://semver.org/).
   with `directory:read` / `directory:read-email`; `GET /api/v1/directory/users/{id}`, `POST …/lookup` (≤100),
   `GET …/users` (role/status filters, SCIM paging ≤100, living accounts only). Email reads logged.
 
+- **Identity events, part 1** (identity step 6a/6b): every change to a person is recorded in `identity_events` in
+  the same transaction (per-person version, V17), and can be signed as a Security Event Token (RFC 8417,
+  `typ secevent+jwt`). Delivery to SwiftDrop follows.
+
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.
 - Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and

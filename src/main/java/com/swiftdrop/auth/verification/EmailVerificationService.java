@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.verification;
 
 import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.InvalidEmailException;
 import com.swiftdrop.auth.user.User;
@@ -36,9 +37,11 @@ public class EmailVerificationService {
     private final Clock clock;
     private final TransactionOperations transactions;
 
+    private final IdentityEvents identityEvents;
+
     public EmailVerificationService(UserRepository users, VerificationTokenRepository tokens, AccountEmailSender sender,
                                     ApplicationEventPublisher events, VerificationProperties settings,
-                                    FrontendProperties frontend, Clock clock, TransactionOperations transactions) {
+                                    FrontendProperties frontend, Clock clock, TransactionOperations transactions, IdentityEvents identityEvents) {
         this.users = users;
         this.tokens = tokens;
         this.sender = sender;
@@ -47,6 +50,7 @@ public class EmailVerificationService {
         this.frontend = frontend;
         this.clock = clock;
         this.transactions = transactions;
+        this.identityEvents = identityEvents;
     }
 
     /**
@@ -108,9 +112,10 @@ public class EmailVerificationService {
         if (tokens.consumeIfUsable(stored.getId(), now) != 1) {
             throw new InvalidVerificationTokenException();
         }
-        users.findById(stored.getUserId())
-                .orElseThrow(InvalidVerificationTokenException::new)
-                .markEmailVerified();
+        User verified = users.findById(stored.getUserId()).orElseThrow(InvalidVerificationTokenException::new);
+        verified.markEmailVerified();
+        // Only now does the person exist for SwiftDrop: a proven mailbox (same transaction as the change)
+        identityEvents.registered(verified);
     }
 
     /** Never reveals whether the address has an account: callers always get the same answer. */
