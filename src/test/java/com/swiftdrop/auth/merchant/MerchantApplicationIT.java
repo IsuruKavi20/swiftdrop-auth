@@ -2,6 +2,7 @@ package com.swiftdrop.auth.merchant;
 
 import com.jayway.jsonpath.JsonPath;
 import com.swiftdrop.auth.TestcontainersConfiguration;
+import com.swiftdrop.auth.token.TestPeople;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.RoleName;
@@ -168,7 +169,7 @@ class MerchantApplicationIT {
     void anAdminCannotApproveTheirOwnApplication() throws Exception {
         UUID admin = verifiedCustomer();
         String merchantId = idOf(apply(admin));
-        String ownAdminToken = "Bearer " + issuer.issue(admin, List.of("ADMIN"), ADMIN_PERMISSIONS).value();
+        String ownAdminToken = "Bearer " + issuer.issue(admin, TestPeople.SOMEONE, List.of("ADMIN"), ADMIN_PERMISSIONS).value();
 
         decide(merchantId, "APPROVE", null, ownAdminToken).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("CANNOT_DECIDE_OWN_APPLICATION"));
@@ -267,11 +268,11 @@ class MerchantApplicationIT {
     }
 
     private String customerToken(UUID userId) {
-        return "Bearer " + issuer.issue(userId, List.of("CUSTOMER"), List.of("parcel:create", "parcel:read-own")).value();
+        return "Bearer " + issuer.issue(userId, TestPeople.SOMEONE, List.of("CUSTOMER"), List.of("parcel:create", "parcel:read-own")).value();
     }
 
     private String adminToken() {
-        return "Bearer " + issuer.issue(verifiedCustomer(), List.of("ADMIN"), ADMIN_PERMISSIONS).value();
+        return "Bearer " + issuer.issue(verifiedCustomer(), TestPeople.SOMEONE, List.of("ADMIN"), ADMIN_PERMISSIONS).value();
     }
 
     private UUID verifiedCustomer() {

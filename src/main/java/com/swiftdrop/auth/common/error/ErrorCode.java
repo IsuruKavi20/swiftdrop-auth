@@ -14,6 +14,21 @@ public enum ErrorCode {
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "Request validation failed", "One or more fields are invalid."),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request", "The request could not be read."),
     INVALID_EMAIL(HttpStatus.BAD_REQUEST, "Invalid email address", "The email address is not valid."),
+    INVALID_NAME(HttpStatus.BAD_REQUEST, "Invalid name",
+            "The name must be 1-100 characters without control or hidden characters."),
+    INVALID_PROFILE(HttpStatus.BAD_REQUEST, "Invalid profile",
+            "One or more profile fields are not valid. See errors for the field and rule."),
+    REAUTHENTICATION_FAILED(HttpStatus.FORBIDDEN, "Password check failed",
+            "The current password is not correct, or the account is temporarily locked."),
+    REAUTHENTICATION_REQUIRED(HttpStatus.FORBIDDEN, "Confirm it's you",
+            "This change needs your current password, and this account has none yet."),
+    EMAIL_UNCHANGED(HttpStatus.BAD_REQUEST, "Same email address", "That is already your email address."),
+    INVALID_EMAIL_CHANGE_LINK(HttpStatus.BAD_REQUEST, "Invalid or expired link",
+            "This link is invalid, has expired, or was replaced by a newer request."),
+    PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "If-Match required",
+            "Send the ETag you read in an If-Match header, so a newer change is never overwritten."),
+    PRECONDITION_FAILED(HttpStatus.PRECONDITION_FAILED, "Changed by someone else",
+            "This was changed since you read it. Read it again and repeat your change."),
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST, "Invalid or expired link",
             "This link is invalid or has expired. Request a new verification email."),
     WEAK_PASSWORD(HttpStatus.BAD_REQUEST, "Password not accepted",
@@ -100,6 +115,8 @@ public enum ErrorCode {
             case 405 -> METHOD_NOT_ALLOWED;
             case 406 -> NOT_ACCEPTABLE;
             case 409 -> CONFLICT;
+            case 412 -> PRECONDITION_FAILED;
+            case 428 -> PRECONDITION_REQUIRED;
             case 413 -> PAYLOAD_TOO_LARGE;
             case 415 -> UNSUPPORTED_MEDIA_TYPE;
             case 429 -> RATE_LIMITED;

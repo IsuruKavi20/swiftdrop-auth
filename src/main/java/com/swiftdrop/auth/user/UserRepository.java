@@ -75,6 +75,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                           @Param("lockShort") Instant lockShort, @Param("lockMedium") Instant lockMedium,
                           @Param("lockLong") Instant lockLong);
 
+    /** One more wrong password on a sensitive action; the max-th one pauses sensitive actions until :lockUntil. */
+    @Modifying
+    @Query("update User u set u.reauthFailureCount = u.reauthFailureCount + 1, u.reauthLockedUntil = "
+            + "case when u.reauthFailureCount + 1 >= :max then :lockUntil else u.reauthLockedUntil end "
+            + "where u.id = :id")
+    int recordFailedReauthentication(@Param("id") UUID id, @Param("max") int max,
+                                     @Param("lockUntil") Instant lockUntil);
+
+    @Modifying
+    @Query("update User u set u.reauthFailureCount = 0, u.reauthLockedUntil = null where u.id = :id")
+    int resetReauthenticationFailures(@Param("id") UUID id);
+
     /** Compare-and-set: only if the hash is still the one we verified; bumps the version like a normal edit. */
     @Modifying
     @Query("update User u set u.passwordHash = :newHash, u.updatedAt = :now, u.version = u.version + 1 "

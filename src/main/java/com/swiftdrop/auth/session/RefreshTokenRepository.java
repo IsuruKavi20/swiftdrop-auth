@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,6 +23,12 @@ interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
     Optional<RefreshToken> lockByHash(@Param("hash") String hash);
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
+
+    /** The live token of each open session (one per family): for "my sessions" and the data export. */
+    @Query("""
+            select t from RefreshToken t where t.userId = :userId and t.usedAt is null and t.revokedAt is null
+            and t.expiresAt > :now order by t.createdAt""")
+    List<RefreshToken> findOpenSessions(@Param("userId") UUID userId, @Param("now") Instant now);
 
     /**
      * Only the owner's id, NOT the entity: a loaded entity would sit in Hibernate's cache, and the later

@@ -2,6 +2,7 @@ package com.swiftdrop.auth.signup;
 
 import com.swiftdrop.auth.common.concurrency.Bulkhead;
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.PersonName;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +26,9 @@ public class SignupService {
         this.passwordWork = passwordWork;
     }
 
-    public SignupOutcome signUp(String rawEmail, String rawPassword) {
+    public SignupOutcome signUp(String rawName, String rawEmail, String rawPassword) {
+        // Cheap input checks first: a bad name or email never costs a breach check or an Argon2 hash
+        PersonName name = PersonName.of(rawName);
         EmailAddress email = EmailAddress.of(rawEmail);
         // Breach check + Argon2 are the expensive part (network + 64 MB): only a few may run at once
         String passwordHash = passwordWork.call(() -> {
@@ -35,7 +38,7 @@ public class SignupService {
             return passwordEncoder.encode(password);
         });
         try {
-            registrar.registerCustomer(email, passwordHash);
+            registrar.registerCustomer(email, name, passwordHash);
             return SignupOutcome.ACCOUNT_CREATED;
         } catch (DuplicateEmailException alreadyRegistered) {
             registrar.notifyExistingAccount(email);

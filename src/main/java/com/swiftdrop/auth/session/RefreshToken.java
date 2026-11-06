@@ -83,6 +83,14 @@ public class RefreshToken {
         return userId;
     }
 
+    Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    Instant getExpiresAt() {
+        return expiresAt;
+    }
+
     UUID getFamilyId() {
         return familyId;
     }

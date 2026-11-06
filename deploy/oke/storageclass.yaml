@@ -1,0 +1,14 @@
+# Disks for the OKE cluster (lesson 17). Our worker nodes have in-transit encryption switched on (traffic
+# between the machine and its disks is encrypted), which only works when disks attach "paravirtualized".
+# Oracle's default class (oci-bv) attaches them via iSCSI, which those nodes refuse.
+#   kubectl apply -f deploy/oke/storageclass.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: oci-bv-encrypted
+provisioner: blockvolume.csi.oraclecloud.com
+parameters:
+  attachment-type: paravirtualized
+reclaimPolicy: Retain            # deleting the claim by accident never deletes the database disk
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

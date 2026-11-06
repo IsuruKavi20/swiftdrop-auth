@@ -5,12 +5,12 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.1</version>
+		<version>4.1.2</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.swiftdrop</groupId>
 	<artifactId>auth</artifactId>
-	<version>1.0.0</version>
+	<version>1.1.0</version>
 	<name>auth</name>
 	<description>SwiftDrop Identity, Access and Auth Service</description>
 	<url/>
@@ -60,6 +60,21 @@
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
+		</dependency>
+		<!-- v1.1: buckets shared by every instance in Redis (compare-and-swap via Lua); Caffeine stays as the fallback -->
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-lettuce</artifactId>
+			<version>8.20.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+		<!-- v1.1: the Google login session lives in Redis, so the callback may land on any instance -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-session-data-redis</artifactId>
 		</dependency>
 		<!-- Accept access tokens on protected endpoints (Bearer token filter, JwtDecoder, JwtAuthenticationConverter) -->
 		<dependency>
@@ -202,6 +217,11 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<!-- Bounded test JVM: by default its heap may grow to 1/4 of RAM, which (with Docker and an IDE
+					     open) exhausted a 16 GB laptop. 1 GB is plenty with at most 6 cached Spring contexts. -->
+					<argLine>-Xmx1g -XX:MaxMetaspaceSize=384m</argLine>
+				</configuration>
 				<executions>
 					<execution>
 						<goals>

@@ -25,6 +25,15 @@ swiftdrop:
     resend-cooldown: 0s
   web:
     anti-enumeration-min-duration: 0ms
+  # Directory service clients (identity step 5). Test secrets; only their SHA-256 hashes are configured
+  directory:
+    clients:
+      - client-id: svc_swiftdrop-reader
+        secret-sha256: 9a43b8ffde01505c785c172c3035246bff7d25484056f712649ca89b6af7a6e7
+        permissions: [directory:read]
+      - client-id: svc_swiftdrop-notify
+        secret-sha256: 58450d65367c90e82abca5272c8743bdfe9d5d8d5d8ad0658c4a5d26206e01c3
+        permissions: [directory:read, directory:read-email]
   # Tests log in many times from 127.0.0.1; limits are tested on their own (RateLimitFilterTest, RateLimitIT)
   rate-limit:
     enabled: false

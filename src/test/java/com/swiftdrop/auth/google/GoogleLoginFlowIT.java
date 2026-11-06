@@ -66,6 +66,9 @@ class GoogleLoginFlowIT {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private org.springframework.session.SessionRepository<? extends org.springframework.session.Session> sessions;
+
     @Test
     void startingGoogleLoginRedirectsToGoogleWithPkceStateAndNonce() throws Exception {
         MvcResult result = mockMvc.perform(get("/oauth2/authorization/google").param("code_challenge", CHALLENGE))
@@ -77,7 +80,13 @@ class GoogleLoginFlowIT {
         assertThat(location).contains("code_challenge=", "code_challenge_method=S256", "state=", "nonce=",
                 "scope=openid%20email%20profile");
         assertThat(location).doesNotContain(CHALLENGE);   // OUR browser binding never goes to Google
-        assertThat(result.getRequest().getSession().getAttribute(GoogleLoginSuccessHandler.CHALLENGE_ATTRIBUTE))
+        // The session lives in Redis (Spring Session): read it back the way any instance would
+        String cookie = result.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(header -> header.startsWith("SWIFTDROP_LOGIN=")).findFirst().orElseThrow();
+        String sessionId = new String(java.util.Base64.getDecoder().decode(
+                cookie.substring("SWIFTDROP_LOGIN=".length(), cookie.indexOf(';'))), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(cookie).contains("HttpOnly", "SameSite=Lax").doesNotContain("Secure");   // Secure: prod only (https)
+        assertThat((Object) sessions.findById(sessionId).getAttribute(GoogleLoginSuccessHandler.CHALLENGE_ATTRIBUTE))
                 .isEqualTo(CHALLENGE);
     }
 
@@ -93,6 +102,45 @@ class GoogleLoginFlowIT {
         assertThat(redirect.getQuery()).isNull();                     // nothing in ?query (logs, Referer)
         assertThat(redirect.getFragment()).matches("^code=[A-Za-z0-9_-]{43}$");
         assertThat(response.getRedirectedUrl()).doesNotContain("access_token", "eyJ");
+    }
+
+    @Test
+    void theProfileInGooglesIdTokenIsSavedOnFirstLogin() throws Exception {
+        String email = uniqueEmail();
+        OidcIdToken idToken = new OidcIdToken("id-token", Instant.now(), Instant.now().plusSeconds(60), Map.of(
+                "iss", "https://accounts.google.com", "sub", uniqueSub(), "email", email, "email_verified", true,
+                "name", "Isuru Kavinda", "given_name", "Isuru", "family_name", "Kavinda",
+                "picture", "https://lh3.googleusercontent.com/a/photo", "locale", "si-LK"));
+        DefaultOidcUser google = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("OIDC_USER")), idToken);
+
+        successHandler.onAuthenticationSuccess(loginRequest(), new MockHttpServletResponse(),
+                new OAuth2AuthenticationToken(google, google.getAuthorities(), "google"));
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT name, given_name, family_name, picture_url, locale FROM identity.users WHERE email = ?", email);
+        assertThat(row).containsEntry("name", "Isuru Kavinda").containsEntry("given_name", "Isuru")
+                .containsEntry("family_name", "Kavinda")
+                .containsEntry("picture_url", "https://lh3.googleusercontent.com/a/photo")
+                .containsEntry("locale", "si-LK");
+    }
+
+    @Test
+    void aPhotoOnAnUntrustedHostIsDroppedButTheLoginWorks() throws Exception {
+        String email = uniqueEmail();
+        OidcIdToken idToken = new OidcIdToken("id-token", Instant.now(), Instant.now().plusSeconds(60), Map.of(
+                "iss", "https://accounts.google.com", "sub", uniqueSub(), "email", email, "email_verified", true,
+                "name", "Isuru Kavinda", "picture", "https://tracker.example/pixel.png"));
+        DefaultOidcUser google = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("OIDC_USER")), idToken);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        successHandler.onAuthenticationSuccess(loginRequest(), response,
+                new OAuth2AuthenticationToken(google, google.getAuthorities(), "google"));
+
+        assertThat(URI.create(response.getRedirectedUrl()).getFragment()).startsWith("code=");
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT name, picture_url FROM identity.users WHERE email = ?", email);
+        assertThat(row).containsEntry("name", "Isuru Kavinda");
+        assertThat(row.get("picture_url")).isNull();
     }
 
     @Test

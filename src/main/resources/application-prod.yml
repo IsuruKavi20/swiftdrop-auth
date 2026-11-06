@@ -1,5 +1,13 @@
 # Production: every secret comes from real environment variables / a secret store (no .env).
 spring:
+  # Redis inside the Kubernetes cluster (Oracle OKE), private network, TLS only. Host and password: no value, no startup.
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      ssl:
+        enabled: true
+
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
@@ -18,6 +26,8 @@ spring:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
       mail.smtp.starttls.required: true
+      # TLS alone isn't enough: the certificate must also belong to MAIL_HOST (stops a fake mail server)
+      mail.smtp.ssl.checkserveridentity: true
 
 server:
   shutdown: graceful

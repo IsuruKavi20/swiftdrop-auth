@@ -1,10 +1,13 @@
 # SwiftDrop Auth Service: production image.
 # Two stages: a JDK builds the jar, a small JRE-only image runs it (no compiler, no Maven, no source in production).
 # Build:  docker build -t swiftdrop-auth:1.0.0 .
+# ARM (Oracle Ampere) from an x86 laptop:  docker buildx build --platform linux/arm64 -t <registry>/swiftdrop-auth:<tag> --push .
 # Run:    see README "Run the Docker image" (every secret comes from environment variables, never from the image).
 
 # ---- stage 1: build ----
-FROM eclipse-temurin:25-jdk-noble AS build
+# Always runs on the BUILD machine's own processor ($BUILDPLATFORM): a jar is the same on every CPU, so Maven runs
+# at full speed even when the final image is for ARM (no slow CPU emulation for the compile)
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk-noble AS build
 WORKDIR /workspace
 
 # Dependencies first: this layer is cached and only rebuilt when pom.xml changes
@@ -18,7 +21,14 @@ RUN ./mvnw -q -B -DskipTests package \
     && java -Djarmode=tools -jar target/auth-*.jar extract --layers --launcher --destination extracted
 
 # ---- stage 2: run ----
+# The TARGET processor (amd64 on a laptop, arm64 for Oracle Ampere): only this small stage is built for it
 FROM eclipse-temurin:25-jre-noble
+
+# Security fixes Ubuntu has released since the base image was built (e.g. CVE-2026-109518 in apt), then remove the
+# package lists so they don't bloat the image. Each rebuild picks up the newest fixes.
+RUN apt-get update \
+    && apt-get -y upgrade --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 # Never run as root: a fixed, unprivileged user with no login shell
 RUN groupadd --system --gid 10001 app \

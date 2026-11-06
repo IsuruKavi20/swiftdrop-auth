@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.net.URI;
 import java.time.Clock;
@@ -33,10 +34,11 @@ public class EmailVerificationService {
     private final VerificationProperties settings;
     private final FrontendProperties frontend;
     private final Clock clock;
+    private final TransactionOperations transactions;
 
     public EmailVerificationService(UserRepository users, VerificationTokenRepository tokens, AccountEmailSender sender,
                                     ApplicationEventPublisher events, VerificationProperties settings,
-                                    FrontendProperties frontend, Clock clock) {
+                                    FrontendProperties frontend, Clock clock, TransactionOperations transactions) {
         this.users = users;
         this.tokens = tokens;
         this.sender = sender;
@@ -44,31 +46,44 @@ public class EmailVerificationService {
         this.settings = settings;
         this.frontend = frontend;
         this.clock = clock;
+        this.transactions = transactions;
     }
 
-    /** New token (older ones stop working) + email. Runs from the outbox listener, so failures are retried. */
-    @Transactional
+    /**
+     * New token (older ones stop working) + email. Runs from the outbox listener, so failures are retried (a retry
+     * simply issues a newer token). The token is committed BEFORE the mail leaves, so the link can never reach the
+     * inbox before the server knows it.
+     */
     public void issueVerification(UUID userId) {
+        PendingMail mail = transactions.execute(status -> saveVerificationToken(userId));
+        if (mail != null) {
+            sender.sendVerification(mail.to(), mail.link());
+        }
+    }
+
+    private PendingMail saveVerificationToken(UUID userId) {
         User user = users.findById(userId).orElse(null);
         if (user == null || user.isEmailVerified()) {
-            return;
+            return null;
         }
         Instant now = clock.instant();
         if (isFloodLimited(userId, now)) {
             // Silently skipped: the client got the same answer as always. The user ID is not personal data in logs.
             log.info("Verification email skipped (cooldown or daily limit) userId={}", userId);
-            return;
+            return null;
         }
         tokens.invalidateOpenTokens(userId, now);
         String token = VerificationTokens.newToken();
         tokens.save(new VerificationToken(userId, VerificationTokens.hash(token), now, now.plus(settings.tokenTtl())));
         // The token goes in the URL fragment (#): browsers never send it to servers or in Referer headers,
         // and email scanners that pre-fetch links can't use it. The frontend page POSTs it on the user's click.
-        sender.sendVerification(EmailAddress.of(user.getEmail()), frontend.link(VERIFY_PATH + "#token=" + token));
+        return new PendingMail(EmailAddress.of(user.getEmail()), frontend.link(VERIFY_PATH + "#token=" + token));
+    }
+
+    private record PendingMail(EmailAddress to, URI link) {
     }
 
     /** Someone signed up with an existing email: verified owner gets a heads-up, unverified gets a fresh link. */
-    @Transactional
     public void handleSignupAttemptOnExistingAccount(UUID userId) {
         User user = users.findById(userId).orElse(null);
         if (user == null) {

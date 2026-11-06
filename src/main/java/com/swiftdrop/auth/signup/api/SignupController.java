@@ -33,7 +33,7 @@ public class SignupController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public SignupAcceptedResponse signUp(@Valid @RequestBody SignupRequest request) {
         // Same minimum response time whether or not the email exists
-        responseTimeFloor.atLeast(() -> signupService.signUp(request.email(), request.password()));
+        responseTimeFloor.atLeast(() -> signupService.signUp(request.name(), request.email(), request.password()));
         return SignupAcceptedResponse.ACCEPTED;
     }
 }

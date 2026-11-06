@@ -71,6 +71,9 @@ public class SecurityConfig {
                         .permitAll()
                         // Google login's last step: the one-time code in the body is the credential
                         .requestMatchers(HttpMethod.POST, ApiPaths.AUTH + "/google/exchange").permitAll()
+                        // Email change links: the one-time token in the body is the credential (step 3b)
+                        .requestMatchers(HttpMethod.POST, ApiPaths.AUTH + "/email-change/confirm",
+                                ApiPaths.AUTH + "/email-change/revert").permitAll()
                         // OAuth token endpoint for merchants' software: client id + secret (HTTP Basic) are the credential
                         .requestMatchers(HttpMethod.POST, "/oauth2/token").permitAll()
                         // Any method is let through so a GET gets an honest 405, not a misleading 401
@@ -80,7 +83,8 @@ public class SecurityConfig {
                         // Dev-only test tokens: this path only has a handler when DevTestTokenController exists
                         .requestMatchers(HttpMethod.POST, ApiPaths.V1 + "/dev/test-tokens").permitAll()
                         // Our public key set: other services download it to verify tokens
-                        .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json", "/.well-known/openid-configuration")
+                        .permitAll()
                         // API docs: only exist when springdoc is enabled (dev); elsewhere these paths are 404
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                         .permitAll()
@@ -97,6 +101,7 @@ public class SecurityConfig {
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/refresh"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/logout"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/google/exchange"),
+                PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-change/**"),
                 PathPatternRequestMatcher.withDefaults().matcher("/oauth2/token"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification/**"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification"),

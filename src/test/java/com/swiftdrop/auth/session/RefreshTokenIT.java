@@ -4,6 +4,8 @@ import com.jayway.jsonpath.JsonPath;
 import com.swiftdrop.auth.TestcontainersConfiguration;
 import com.swiftdrop.auth.admin.RoleAdministration;
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.PersonName;
+import com.swiftdrop.auth.user.IdentityProfile;
 import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
@@ -17,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -28,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -35,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -72,6 +77,9 @@ class RefreshTokenIT {
 
     @Autowired
     private RoleAdministration administration;
+
+    @Autowired
+    private SessionService sessions;
 
     @Test
     void loginReturnsARefreshTokenThatLastsOneDay() throws Exception {
@@ -204,6 +212,44 @@ class RefreshTokenIT {
         String access = JsonPath.read(result.getResponse().getContentAsString(), "$.access_token");
         assertThat(jwtDecoder.decode(access).getClaimAsStringList("roles")).containsExactly("COURIER", "CUSTOMER");
         assertThat(jwtDecoder.decode(access).getClaimAsStringList("entitlements")).contains("delivery:read-own");
+    }
+
+    @Test
+    void loginGivesAnAccessTokenThatSaysWhoThePersonIs() throws Exception {
+        String email = verifiedUser(RoleName.CUSTOMER);
+        transactions.executeWithoutResult(status -> users.findByEmail(email).orElseThrow()
+                .setOwnProfile(IdentityProfile.ofName(PersonName.of("Nimal Perera")), Instant.now()));
+
+        MvcResult result = mockMvc.perform(loginRequest(email)).andExpect(status().isOk()).andReturn();
+
+        Jwt access = jwtDecoder.decode(JsonPath.read(result.getResponse().getContentAsString(), "$.access_token"));
+        assertThat(access.getClaimAsString("email")).isEqualTo(email);
+        assertThat(access.getClaimAsBoolean("email_verified")).isTrue();
+        assertThat(access.getClaimAsString("name")).isEqualTo("Nimal Perera");
+    }
+
+    @Test
+    void anAccountDisabledBetweenThePasswordCheckAndTheSessionStartGetsNoTokens() {
+        String email = verifiedUser(RoleName.CUSTOMER);
+        User checkedByLogin = users.findByEmail(email).orElseThrow();   // login saw an ACTIVE account...
+        jdbc.update("UPDATE identity.users SET status = 'DISABLED' WHERE email = ?", email);   // ...then an admin acted
+
+        assertThatThrownBy(() -> sessions.start(checkedByLogin)).isInstanceOf(InvalidRefreshTokenException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM identity.refresh_tokens WHERE user_id = ?",
+                Integer.class, checkedByLogin.getId())).isZero();
+    }
+
+    @Test
+    void aChangedNameAppearsInTheTokenAfterTheNextRefresh() throws Exception {
+        String email = verifiedUser(RoleName.CUSTOMER);
+        String token = login(email);
+        transactions.executeWithoutResult(status -> users.findByEmail(email).orElseThrow()
+                .setOwnProfile(IdentityProfile.ofName(PersonName.of("Nimal Perera")), Instant.now()));
+
+        MvcResult result = refresh(token).andExpect(status().isOk()).andReturn();
+
+        Jwt access = jwtDecoder.decode(JsonPath.read(result.getResponse().getContentAsString(), "$.access_token"));
+        assertThat(access.getClaimAsString("name")).isEqualTo("Nimal Perera");
     }
 
     @Test

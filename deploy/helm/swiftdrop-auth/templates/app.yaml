@@ -1,0 +1,203 @@
+{{- $name := include "auth.name" . }}
+{{- $publicUrl := include "auth.publicUrl" . }}
+# Non-secret settings (a ConfigMap): the same image runs everywhere, only these values differ.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-config
+  labels: {{- include "auth.labels" . | nindent 4 }}
+data:
+  SPRING_PROFILES_ACTIVE: prod
+  # Postgres over TLS, checking the server certificate AND its name (verify-full) against our CA
+  DB_URL: "jdbc:postgresql://{{ include "auth.host" (list . "postgres") }}:5432/{{ .Values.postgres.database }}?sslmode=verify-full&sslrootcert=/etc/swiftdrop/ca/ca.crt"
+  DB_APP_USER: identity_app
+  DB_MIGRATOR_USER: identity_migrator
+  REDIS_HOST: {{ include "auth.host" (list . "redis") | quote }}
+  REDIS_PORT: "6379"
+  # Trust exactly our internal CA for Redis (and Mailpit), not the whole world
+  SPRING_SSL_BUNDLE_PEM_INTERNAL_TRUSTSTORE_CERTIFICATE: file:/etc/swiftdrop/ca/ca.crt
+  SPRING_DATA_REDIS_SSL_BUNDLE: internal
+  {{- if .Values.mailpit.enabled }}
+  MAIL_HOST: {{ include "auth.host" (list . "mailpit") | quote }}
+  MAIL_PORT: "587"
+  SPRING_MAIL_SSL_BUNDLE: internal
+  {{- else }}
+  MAIL_HOST: {{ required "mail.host is required without mailpit" .Values.mail.host | quote }}
+  MAIL_PORT: {{ .Values.mail.port | quote }}
+  {{- end }}
+  {{- with .Values.mail.from }}
+  # The sender address: must be on a domain the mail provider has verified (DKIM), or mail lands in spam
+  SWIFTDROP_MAIL_FROM: {{ . | quote }}
+  {{- end }}
+  SWIFTDROP_JWT_ISSUER: {{ $publicUrl | quote }}
+  SWIFTDROP_PUBLIC_BASE_URL: {{ $publicUrl | quote }}
+  SWIFTDROP_JWT_PRIVATE_KEY_LOCATION: /etc/swiftdrop/jwt/signing-key.pem
+  SWIFTDROP_FRONTEND_BASE_URL: {{ required "frontendBaseUrl is required" .Values.frontendBaseUrl | quote }}
+  SWIFTDROP_CORS_ALLOWED_ORIGINS: {{ .Values.corsAllowedOrigins | quote }}
+  SWIFTDROP_TRUSTED_PROXIES: {{ required "trustedProxies is required" .Values.trustedProxies | quote }}
+  {{- with .Values.bootstrapAdminEmail }}
+  # The first admin: granted at startup only if this account exists AND its email is verified (lesson 9)
+  SWIFTDROP_BOOTSTRAP_ADMIN_EMAIL: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "auth.selector" (list . "app") | nindent 4 }}
+  ports:
+    - { name: http, port: 80, targetPort: 9000 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+  annotations:
+    # Reloader (stakater) restarts the pods, one by one, when a Secret or ConfigMap they use changes
+    reloader.stakater.com/auto: "true"
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  # Zero downtime: a new copy must be ready before an old one is removed
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: {{- include "auth.selector" (list . "app") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auth.labels" . | nindent 8 }}
+        {{- include "auth.selector" (list . "app") | nindent 8 }}
+      annotations:
+        # A config change rolls the pods (env vars are only read at start)
+        checksum/config: {{ printf "%s%s" $publicUrl (toJson .Values) | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      # Spread the copies over different nodes: losing one machine leaves a copy running
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          # Only nodes that can run us count (not the tainted control plane), and only pods of the SAME version:
+          # otherwise the extra pod of a rolling update could never be placed
+          nodeTaintsPolicy: Honor
+          matchLabelKeys: ["pod-template-hash"]
+          labelSelector:
+            matchLabels: {{- include "auth.selector" (list . "app") | nindent 14 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001       # the user baked into our image
+        runAsGroup: 10001
+        fsGroup: 10001         # the mounted signing key is readable by this group only
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: auth
+          image: "{{ .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef: { name: {{ $name }}-config }
+          env:
+            - name: DB_APP_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-app-password } }
+            - name: DB_MIGRATOR_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-migrator-password } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: redis-password } }
+            - name: GOOGLE_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: google-client-id } }
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: google-client-secret } }
+            - name: MAIL_USERNAME
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-username } }
+            - name: MAIL_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-password } }
+            {{- range $i, $client := .Values.directoryClients }}
+            - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_CLIENTID
+              value: {{ $client.clientId | quote }}
+            - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_SECRETSHA256
+              valueFrom: { secretKeyRef: { name: {{ $.Values.directorySecretName }}, key: {{ printf "%s-sha256" $client.clientId | quote }} } }
+            {{- range $j, $permission := $client.permissions }}
+            - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_PERMISSIONS_{{ $j }}
+              value: {{ $permission | quote }}
+            {{- end }}
+            {{- end }}
+          ports:
+            - { name: http, containerPort: 9000 }
+          # Java needs time to start: no liveness kills until it has started once
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            # Let the ingress stop sending new requests before Spring starts its graceful shutdown
+            preStop:
+              sleep: { seconds: 10 }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: jwt, mountPath: /etc/swiftdrop/jwt, readOnly: true }
+            - { name: ca, mountPath: /etc/swiftdrop/ca, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: jwt
+          secret:
+            secretName: {{ .Values.secrets.jwtName }}
+            defaultMode: 0440
+            items: [{ key: signing-key.pem, path: signing-key.pem }]
+        - name: ca
+          secret:
+            secretName: {{ $name }}-ca
+            items: [{ key: ca.crt, path: ca.crt }]
+        - { name: tmp, emptyDir: {} }
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# Voluntary disruptions (node maintenance, upgrades) never take down both copies at once
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1     # (not minAvailable: 1, which would block node maintenance whenever only 1 copy runs)
+  selector:
+    matchLabels: {{- include "auth.selector" (list . "app") | nindent 6 }}
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ $name }} }
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.autoscaling.cpuPercent }} }
+{{- end }}

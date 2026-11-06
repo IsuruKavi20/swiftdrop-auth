@@ -1,0 +1,87 @@
+# Defaults = production-shaped. Per environment, override in values-<env>.yaml (lesson 17).
+# Secrets are NEVER here: they live in Kubernetes Secrets created with kubectl (see NOTES / lesson 17).
+
+image:
+  repository: swiftdrop-auth
+  tag: ""                 # required: the git commit id or release, never "latest"
+  pullPolicy: IfNotPresent
+  pullSecrets: []         # e.g. [{ name: ocir-pull }] for a private registry
+
+replicas: 2
+
+# The public address of this service (https). publicPort only when it isn't 443 (local cluster).
+publicHost: ""
+publicPort: ""
+frontendBaseUrl: ""
+corsAllowedOrigins: ""
+# Regex of the ingress controller's pod addresses: only they may set X-Forwarded-For (real client IP for rate limits)
+trustedProxies: ""
+
+# The first admin (an existing, verified account). Remove once a second admin exists, or a deliberate revoke of
+# this account's ADMIN role would be undone at the next restart.
+bootstrapAdminEmail: ""
+
+# Created by you with kubectl, never stored in git
+secrets:
+  # keys: db-admin-password, db-migrator-password, db-app-password, redis-password,
+  #       google-client-id, google-client-secret, mail-username, mail-password
+  name: swiftdrop-auth-secrets
+  # key: signing-key.pem (RSA private key, PKCS#8 PEM)
+  jwtName: swiftdrop-auth-jwt
+
+# Directory API service clients (identity step 5): our own backends that may read people.
+# clientId and permissions are not secret; the SHA-256 of each client's secret lives in the Secret
+# directorySecretName under the key "<clientId>-sha256" (created with kubectl, never in git).
+directoryClients: []
+#  - clientId: svc_swiftdrop-backend
+#    permissions: [directory:read, directory:read-email]
+directorySecretName: swiftdrop-auth-directory
+
+resources:
+  requests: { cpu: 250m, memory: 640Mi }
+  limits: { memory: 768Mi }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 3          # 3 x 640Mi fits the 2 free Oracle nodes next to Postgres and Redis
+  cpuPercent: 70
+
+ingress:
+  className: traefik
+  # Namespace of the ingress controller: the only one allowed to reach the app pods
+  controllerNamespace: traefik
+  tls:
+    # true: certificate from our internal CA (local cluster, browser warns). false: a public issuer (Let's Encrypt)
+    internalCa: false
+    clusterIssuer: letsencrypt
+
+mail:
+  # Ignored when mailpit.enabled (then mail goes to the in-cluster Mailpit over STARTTLS)
+  host: ""
+  port: 587
+  from: ""                # e.g. no-reply@<your-domain>; "" = the app's default
+
+postgres:
+  enabled: true
+  # Full image names: CRI-O (Oracle OKE) refuses short names, which any configured registry could answer
+  image: docker.io/library/postgres:17-alpine
+  database: identity
+  storage: 2Gi
+  storageClass: ""        # "" = the cluster's default disk type
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+redis:
+  enabled: true
+  image: docker.io/library/redis:7.4-alpine
+  maxMemory: 128mb
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 192Mi }
+
+# A fake mail server inside the cluster: for clusters without real SMTP (local practice)
+mailpit:
+  enabled: false
+  image: docker.io/axllent/mailpit:v1.31.5

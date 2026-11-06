@@ -52,6 +52,21 @@ spring:
     properties:
       hibernate:
         default_schema: identity
+  # Redis: shared rate limits + the Google login session for every instance (lesson 16).
+  # Short timeouts: a slow or missing Redis must never hold a login request for long.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD}
+      timeout: 500ms
+      connect-timeout: 1s
+  session:
+    # Same 5 minutes and cookie as server.servlet.session below; only the storage moves to Redis
+    redis:
+      namespace: swiftdrop:session
+      # Never send CONFIG to Redis (managed Redis forbids it); sessions expire by key TTL
+      configure-action: none
   flyway:
     user: ${DB_MIGRATOR_USER}
     password: ${DB_MIGRATOR_PASSWORD}
@@ -64,6 +79,7 @@ server:
   # 9000: the team's backend uses Spring's default 8080 on the same machine
   port: 9000
   # The only HTTP session is Google login's 5-minute dance (state, PKCE verifier, nonce, browser challenge).
+  # Stored in Redis (Spring Session). The cookie itself is built in google/LoginSessionCookieConfig.
   # SameSite=Lax (not Strict): the cookie must come back on Google's top-level redirect to our callback.
   servlet:
     session:
@@ -104,6 +120,11 @@ management:
       show-details: never
       probes:
         enabled: true
+  # A Redis blip must not pull every instance out of the load balancer: Redis is not part of readiness,
+  # and rate limits fall back to local buckets while it is gone
+  health:
+    redis:
+      enabled: false
 
 swiftdrop:
   security:
@@ -134,6 +155,8 @@ swiftdrop:
   rate-limit:
     enabled: true
     max-tracked-keys: 100000
+    # Shared by every instance in Redis; this instance's own buckets while Redis is down (lesson 16)
+    store: redis
     rules:
       - {name: login, method: POST, path: /api/v1/auth/login, per-minute: 10}
       - {name: signup, method: POST, path: /api/v1/auth/signup, per-minute: 5}
@@ -145,7 +168,30 @@ swiftdrop:
       - {name: google-exchange, method: POST, path: /api/v1/auth/google/exchange, per-minute: 10}
       - {name: merchant-token, method: POST, path: /oauth2/token, per-minute: 30}
       - {name: merchant-apply, method: POST, path: /api/v1/merchants/application, per-minute: 5}
+      - {name: profile-edit, method: PATCH, path: /api/v1/me/profile, per-minute: 20}
+      - {name: email-change, method: POST, path: /api/v1/me/email-change, per-minute: 5}
+      - {name: email-change-confirm, method: POST, path: /api/v1/auth/email-change/confirm, per-minute: 20}
+      - {name: email-change-revert, method: POST, path: /api/v1/auth/email-change/revert, per-minute: 20}
+      - {name: password-change, method: POST, path: /api/v1/me/password, per-minute: 5}
+      - {name: data-export, method: GET, path: /api/v1/me/export, per-minute: 5}
+      - {name: account-delete, method: DELETE, path: /api/v1/me, per-minute: 5}
+      - {name: userinfo, method: GET, path: /oauth2/userinfo, per-minute: 60}
+      - {name: userinfo-post, method: POST, path: /oauth2/userinfo, per-minute: 60}
+      # Directory (service clients only); GET /users/{id} can't be expressed as an exact path (see the plan)
+      - {name: directory-list, method: GET, path: /api/v1/directory/users, per-minute: 120}
+      - {name: directory-lookup, method: POST, path: /api/v1/directory/users/lookup, per-minute: 120}
       - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
+  # Directory API service clients (identity step 5): SwiftDrop's backend logs in with client credentials.
+  # Per environment, from secrets (never in git): client-id (svc_...), secret-sha256 (hex SHA-256 of the secret,
+  # e.g. `printf '%s' "$SECRET" | sha256sum`), permissions (directory:read, optionally directory:read-email).
+  # Env form: SWIFTDROP_DIRECTORY_CLIENTS_0_CLIENTID, ..._0_SECRETSHA256, ..._0_PERMISSIONS_0
+  directory:
+    clients: []
+  # Profile photos are shown to other people, so they may only point at trusted image hosts (no tracking pixels).
+  # ".example.com" = any sub-domain of example.com; "img.example.com" = exactly that host.
+  profile:
+    picture-hosts:
+      - .googleusercontent.com
   # Google login: the OAuth client from Google Cloud Console (env vars / .env). Empty = Google login off (dev only).
   google:
     client-id: ${GOOGLE_CLIENT_ID:}

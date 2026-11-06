@@ -74,7 +74,7 @@ class LoginIT {
     @Test
     void unverifiedUserWithCorrectPasswordIsToldToVerify() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
 
         assertThatThrownBy(() -> login.login(email, PASSWORD)).isInstanceOf(EmailNotVerifiedException.class);
     }
@@ -98,7 +98,7 @@ class LoginIT {
 
     private String verifiedUser() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
         Matcher link = TOKEN_IN_LINK.matcher(mailpit.awaitMessageTo(email, "Verify your SwiftDrop email address").text());
         assertThat(link.find()).isTrue();
         verification.verify(link.group(1));

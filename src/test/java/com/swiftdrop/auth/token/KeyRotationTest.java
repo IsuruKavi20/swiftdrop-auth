@@ -40,7 +40,7 @@ class KeyRotationTest {
         AccessTokenIssuer issuer = new AccessTokenIssuer(JwtConfig.encoder(newKey), SETTINGS, Clock.systemUTC());
         JwtDecoder decoder = JwtConfig.decoder(JwtConfig.publicKeySet(newKey, List.of(oldKey.toPublicJWK())), SETTINGS);
 
-        assertThat(decoder.decode(issuer.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()).value()).getHeaders())
+        assertThat(decoder.decode(issuer.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()).value()).getHeaders())
                 .containsEntry("kid", "auth-2026-11");
     }
 
@@ -50,7 +50,7 @@ class KeyRotationTest {
                 SETTINGS.clientId(), SETTINGS.accessTokenTtl(), "auth-2026-10", null, false, true, List.of());
         AccessTokenIssuer beforeRotation = new AccessTokenIssuer(JwtConfig.encoder(oldKey), beforeRotationSettings,
                 Clock.systemUTC());
-        String oldToken = beforeRotation.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()).value();
+        String oldToken = beforeRotation.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()).value();
 
         JwtDecoder duringOverlap = JwtConfig.decoder(JwtConfig.publicKeySet(newKey, List.of(oldKey.toPublicJWK())), SETTINGS);
         JwtDecoder afterOverlap = JwtConfig.decoder(JwtConfig.publicKeySet(newKey, List.of()), SETTINGS);
@@ -64,7 +64,7 @@ class KeyRotationTest {
         // Header says kid auth-2026-11, but the encoder only holds auth-2026-10: nothing gets signed
         AccessTokenIssuer mismatched = new AccessTokenIssuer(JwtConfig.encoder(oldKey), SETTINGS, Clock.systemUTC());
 
-        assertThatThrownBy(() -> mismatched.issue(UUID.randomUUID(), List.of("CUSTOMER"), List.of()))
+        assertThatThrownBy(() -> mismatched.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()))
                 .isInstanceOf(org.springframework.security.oauth2.jwt.JwtEncodingException.class);
     }
 

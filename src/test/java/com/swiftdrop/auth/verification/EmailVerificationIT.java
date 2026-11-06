@@ -46,7 +46,7 @@ class EmailVerificationIT {
     @Test
     void signupSendsAOneTimeLinkThatVerifiesTheAccount() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
 
         MailpitClient.Mail mail = mailpit.awaitMessageTo(email, SmtpAccountEmailSender.VERIFY_SUBJECT);
         String token = tokenFrom(mail.text());
@@ -61,7 +61,7 @@ class EmailVerificationIT {
     @Test
     void databaseStoresOnlyTheHashOfTheToken() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
         String token = tokenFrom(mailpit.awaitMessageTo(email, SmtpAccountEmailSender.VERIFY_SUBJECT).text());
 
         String stored = jdbc.queryForObject("""
@@ -74,10 +74,10 @@ class EmailVerificationIT {
     @Test
     void signingUpAgainWithAVerifiedEmailSendsAlreadyRegisteredMail() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
         verification.verify(tokenFrom(mailpit.awaitMessageTo(email, SmtpAccountEmailSender.VERIFY_SUBJECT).text()));
 
-        signup.signUp(email, "a completely different passphrase");
+        signup.signUp("Test User", email, "a completely different passphrase");
 
         MailpitClient.Mail mail = mailpit.awaitMessageTo(email, SmtpAccountEmailSender.ALREADY_REGISTERED_SUBJECT);
         assertThat(mail.text()).contains("http://localhost:3000/login").doesNotContain("verify-email");
@@ -86,7 +86,7 @@ class EmailVerificationIT {
     @Test
     void resendIssuesANewLinkAndTheOldOneStopsWorking() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
         String first = tokenFrom(mailpit.awaitMessageTo(email, SmtpAccountEmailSender.VERIFY_SUBJECT).text());
 
         verification.requestResend(email);
@@ -100,7 +100,7 @@ class EmailVerificationIT {
     @Test
     void outboxRecordsEveryEmailAsCompleted() {
         String email = uniqueEmail();
-        signup.signUp(email, PASSWORD);
+        signup.signUp("Test User", email, PASSWORD);
         mailpit.awaitMessageTo(email, SmtpAccountEmailSender.VERIFY_SUBJECT);
 
         Integer open = jdbc.queryForObject(

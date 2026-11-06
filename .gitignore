@@ -41,3 +41,7 @@ build/
 
 # JVM crash logs
 hs_err_pid*.log
+replay_pid*.log
+
+# Python virtual environment (created by the VS Code Python extension); never committed
+.venv/

@@ -3,6 +3,68 @@
 All notable changes to the SwiftDrop Auth Service. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions: [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Identity profile** (identity plan step 1): `name`, `given_name`, `family_name`, `picture_url`, `locale` on users
+  (OpenID Connect claim names), with `profile_source` (USER/GOOGLE) and `profile_updated_at` (migration V11).
+- Google login imports the profile from the signed ID token; a user-typed name is never overwritten, Google only
+  fills empty fields; invalid claims are dropped without failing the login.
+- **Identity claims in user access tokens** (identity plan step 2): `email`, `email_verified` and `name` (OpenID
+  Connect names; `name` omitted when the account has none). Refreshed tokens carry the current values. Merchant
+  (client-credentials) and dev test tokens carry none. Picture, phone and address are never put in a token.
+
+- **My profile API** (identity step 3a): `GET /api/v1/me/profile` and `PATCH /api/v1/me/profile` (JSON Merge
+  Patch; `If-Match` required: 428 without, 412 when stale). Profile photos only from trusted image hosts
+  (`swiftdrop.profile.picture-hosts`, default `.googleusercontent.com`); Google photos from other hosts are dropped.
+
+- **Email change request** (identity step 3b-1): `POST /api/v1/me/email-change` (current password required; 202
+  always; confirmation link to the new address, notice to the old one; one open request per user; flood limits).
+  New `account` module, migration V12, error codes `REAUTHENTICATION_FAILED`, `REAUTHENTICATION_REQUIRED`,
+  `EMAIL_UNCHANGED`.
+
+- **Email change confirmation** (identity step 3b-2): `POST /api/v1/auth/email-change/confirm {token}` (public,
+  single use, 1 hour). The old address gets "email changed" with a 7-day undo link.
+
+- **Email change undo** (identity step 3b-3): `POST /api/v1/auth/email-change/revert {token}` restores the old
+  address (even after further changes), cancels open requests and ends all sessions (`EMAIL_CHANGE_UNDONE`, V13).
+
+- **Password change** (identity step 3c): `POST /api/v1/me/password` (current password; sign-up rules; ends all
+  sessions incl. this device's and returns fresh tokens; notice email; `PASSWORD_CHANGED`, V14).
+
+- **Data export** (identity step 3d): `GET /api/v1/me/export` (JSON download; every module contributes its section
+  through `PersonalDataExporter`; no secrets).
+
+- **Account deletion** (identity step 3e): `DELETE /api/v1/me` (password; tombstone with status `DELETED`,
+  real email removed, sessions ended, Google link removed via `AccountDeleted`; V15).
+
+- **OpenID Connect** (identity step 4): discovery `/.well-known/openid-configuration`; `id_token` in login, refresh
+  and Google responses (`typ JWT`, audience = frontend, never accepted as an access token); `GET/POST
+  /oauth2/userinfo`. No authorization-code flow (not advertised).
+
+- **Directory API** (identity step 5): service clients (`svc_…`, client credentials, secrets configured as SHA-256)
+  with `directory:read` / `directory:read-email`; `GET /api/v1/directory/users/{id}`, `POST …/lookup` (≤100),
+  `GET …/users` (role/status filters, SCIM paging ≤100, living accounts only). Email reads logged.
+
+### Changed
+- Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.
+- Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and
+  the claims are for display/prefill (up to 15 minutes old).
+- **Breaking:** `POST /api/v1/auth/signup` now requires `name` (1–100 visible characters, every script; hidden,
+  bidi and control characters rejected with `400 invalid-name`). Clients must send the "Full name" field.
+
+### Security
+- Step 3 review fixes: every "my account" action requires an active account (a deleted/disabled account's
+  still-valid token gets 401); deletion erases the email-change history; wrong passwords on sensitive actions use
+  their own counter (V16) instead of the login lockout; undo links last 72 hours; deletion is idempotent and drops
+  roles.
+- Fixed a lost update: an email-change job could re-open a request cancelled meanwhile (now row-locked).
+- Reclaiming a pre-hijacked account through Google also removes the profile the attacker typed.
+- Session start re-checks the account on the locked, fresh row: an account disabled between the password check and
+  token issuing gets no tokens (race found in review).
+- Name validation blocks bidi overrides, zero-width and blank-looking characters, and line separators; photo URLs
+  must be exactly `https://` with a real host and no credentials (also enforced by a database CHECK).
+
 ## [1.0.0] - 2026-10-31
 
 First release: Module 1 (Identity, Access & Auth) of SwiftDrop as a separate, deployable service.

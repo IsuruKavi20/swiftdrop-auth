@@ -1,0 +1,71 @@
+{{- if .Values.mailpit.enabled }}
+{{- $name := printf "%s-mailpit" (include "auth.name" .) }}
+# A fake mail server for clusters without real SMTP. It behaves like production SMTP: STARTTLS required
+# (certificate from our CA) and a username/password, so the app's prod mail settings work unchanged.
+# Inbox: kubectl port-forward svc/{{ $name }} 8025:8025  ->  http://localhost:8025
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "auth.selector" (list . "mailpit") | nindent 4 }}
+  ports:
+    - { name: smtp, port: 587, targetPort: 1025 }
+    - { name: web, port: 8025, targetPort: 8025 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "auth.selector" (list . "mailpit") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auth.labels" . | nindent 8 }}
+        {{- include "auth.selector" (list . "mailpit") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: mailpit
+          image: {{ .Values.mailpit.image }}
+          env:
+            - name: MAIL_USERNAME
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-username } }
+            - name: MAIL_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-password } }
+            - { name: MP_SMTP_AUTH, value: "$(MAIL_USERNAME):$(MAIL_PASSWORD)" }
+            - { name: MP_SMTP_TLS_CERT, value: /tls/tls.crt }
+            - { name: MP_SMTP_TLS_KEY, value: /tls/tls.key }
+            - { name: MP_SMTP_REQUIRE_STARTTLS, value: "true" }
+          ports:
+            - { name: smtp, containerPort: 1025 }
+            - { name: web, containerPort: 8025 }
+          readinessProbe:
+            httpGet: { path: /livez, port: 8025 }
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tls, mountPath: /tls, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tls
+          secret: { secretName: {{ $name }}-tls, defaultMode: 0440 }
+        - { name: tmp, emptyDir: {} }
+{{- end }}

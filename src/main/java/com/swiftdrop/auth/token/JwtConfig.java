@@ -39,6 +39,7 @@ import java.util.List;
 class JwtConfig {
 
     private static final Pattern MERCHANT_CLIENT_ID = Pattern.compile("^mc_[A-Za-z0-9_-]{22}$");
+    private static final Pattern SERVICE_CLIENT_ID = Pattern.compile("^svc_[a-z0-9-]{3,40}$");
 
     private static final Logger log = LoggerFactory.getLogger(JwtConfig.class);
     private static final JOSEObjectType ACCESS_TOKEN_TYPE = new JOSEObjectType("at+jwt");
@@ -103,10 +104,12 @@ class JwtConfig {
                 .jwtProcessorCustomizer(processor -> processor.setJWSTypeVerifier(
                         new DefaultJOSEObjectTypeVerifier<>(ACCESS_TOKEN_TYPE)))
                 .build();
-        // client_id: our user apps (swiftdrop-web) OR a merchant's software (mc_...), nothing else
+        // client_id: our user apps (swiftdrop-web), a merchant's software (mc_...) or one of our own backends
+        // (svc_..., Directory API), nothing else
         OAuth2TokenValidator<Jwt> knownClient = new JwtClaimValidator<String>("client_id",
                 clientId -> settings.clientId().equals(clientId)
-                        || (clientId != null && MERCHANT_CLIENT_ID.matcher(clientId).matches()));
+                        || (clientId != null && (MERCHANT_CLIENT_ID.matcher(clientId).matches()
+                        || SERVICE_CLIENT_ID.matcher(clientId).matches())));
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createAtJwtValidator()
                         .issuer(settings.issuer().toString())

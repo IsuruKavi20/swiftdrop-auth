@@ -1,0 +1,36 @@
+# Traefik (the ingress controller) on the local kind cluster: runs on the control-plane node, whose ports
+# 80/443 are mapped to 127.0.0.1:8088/8443 on your laptop (deploy/kind/cluster.yaml).
+# Install: helm install traefik traefik/traefik --version 42.2.0 -n traefik --create-namespace -f deploy/kind/traefik-values.yaml
+deployment:
+  replicas: 1
+nodeSelector:
+  ingress-ready: "true"
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+service:
+  type: ClusterIP
+ports:
+  web:
+    hostPort: 80
+    # Plain http only answers with a redirect to https
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    hostPort: 443
+    # Laptop only: the public https port is 8443 (kind maps 127.0.0.1:8443 -> node 443), so the
+    # http->https redirect must point there. In the cloud this stays 443.
+    exposedPort: 8443
+providers:
+  kubernetesIngress:
+    enabled: true
+  kubernetesCRD:
+    enabled: true
+ingressClass:
+  enabled: true
+  isDefaultClass: true

@@ -1,0 +1,132 @@
+{{- if .Values.postgres.enabled }}
+{{- $name := printf "%s-postgres" (include "auth.name" .) }}
+# Postgres inside the cluster (no free managed database on Oracle). A StatefulSet: a stable name and its own
+# disk (PersistentVolumeClaim) that survives restarts. TLS only (pg_hba "hostssl"), least-privilege roles.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-config
+  labels: {{- include "auth.labels" . | nindent 4 }}
+data:
+  # Same role script as docker-compose: identity_migrator (Flyway) and identity_app (rows only)
+  01-roles.sh: |-
+{{ .Files.Get "files/01-roles.sh" | indent 4 }}
+  # Who may log in, and how (first matching line wins):
+  #  - inside the container, only the OS user "postgres" as the DB user "postgres" (peer = same name, no password)
+  #  - over the network: ONLY our two app roles, ONLY our database, ONLY with TLS + password
+  #  - everything else (including the superuser over the network): rejected
+  pg_hba.conf: |
+    local   all                     postgres                             peer
+    hostssl {{ .Values.postgres.database }}  identity_app,identity_migrator  0.0.0.0/0  scram-sha-256
+    host    all                     all                 0.0.0.0/0        reject
+    host    all                     all                 ::/0             reject
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "auth.selector" (list . "postgres") | nindent 4 }}
+  ports:
+    - { name: postgres, port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+  annotations:
+    # Restart when its TLS certificate is renewed (Postgres reads it only at start)
+    reloader.stakater.com/auto: "true"
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels: {{- include "auth.selector" (list . "postgres") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auth.labels" . | nindent 8 }}
+        {{- include "auth.selector" (list . "postgres") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70          # the "postgres" user of the alpine image
+        runAsGroup: 70
+        fsGroup: 70            # mounted files (TLS key) readable by the postgres group
+        fsGroupChangePolicy: OnRootMismatch   # don't re-own the whole data disk on every start
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          args:
+            - -c
+            - ssl=on
+            - -c
+            - ssl_cert_file=/tls/tls.crt
+            - -c
+            - ssl_key_file=/tls/tls.key
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+            - -c
+            - password_encryption=scram-sha-256
+          env:
+            - { name: POSTGRES_DB, value: {{ .Values.postgres.database | quote }} }
+            - { name: POSTGRES_USER, value: postgres }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-admin-password } }
+            - name: DB_MIGRATOR_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-migrator-password } }
+            - name: DB_APP_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-app-password } }
+          ports:
+            - { name: postgres, containerPort: 5432 }
+          # The first start creates the database (can take a minute or more): no liveness kills before that
+          startupProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", {{ .Values.postgres.database | quote }}] }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", {{ .Values.postgres.database | quote }}] }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", {{ .Values.postgres.database | quote }}] }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources: {{- toYaml .Values.postgres.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d/01-roles.sh, subPath: 01-roles.sh }
+            - { name: init, mountPath: /etc/postgresql/pg_hba.conf, subPath: pg_hba.conf }
+            - { name: tls, mountPath: /tls, readOnly: true }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: init
+          configMap: { name: {{ $name }}-config, defaultMode: 0555 }
+        - name: tls
+          # Postgres accepts a key owned by root only with mode 0640 (group = postgres via fsGroup)
+          secret: { secretName: {{ $name }}-tls, defaultMode: 0640 }
+        - { name: run, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.postgres.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        # Note: Oracle block volumes are at least 50 GB, so a smaller request is rounded up there (still free)
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+{{- end }}

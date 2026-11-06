@@ -41,7 +41,7 @@ class SignupServiceIT {
     @Test
     void savesNormalisedUserWithCustomerRole() {
         String id = uniqueId();
-        signupService.signUp("  Ｓaved-" + id + "@Example.com ", "a long passphrase here");
+        signupService.signUp("Test User", "  Ｓaved-" + id + "@Example.com ", "a long passphrase here");
 
         String role = jdbcTemplate.queryForObject("""
                 SELECT r.name FROM identity.users u
@@ -52,18 +52,30 @@ class SignupServiceIT {
     }
 
     @Test
+    void savesTheNameAsTheUsersOwnProfile() {
+        String email = "named-" + uniqueId() + "@example.com";
+        signupService.signUp("  ඉසුරු   කවින්ද ", email, "a long passphrase here");
+
+        var row = jdbcTemplate.queryForMap(
+                "SELECT name, profile_source, profile_updated_at FROM identity.users WHERE email = ?", email);
+        assertThat(row.get("name")).isEqualTo("ඉසුරු කවින්ද");
+        assertThat(row.get("profile_source")).isEqualTo("USER");
+        assertThat(row.get("profile_updated_at")).isNotNull();
+    }
+
+    @Test
     void sameEmailWithDifferentCaseIsADuplicate() {
         String id = uniqueId();
-        signupService.signUp("case-" + id + "@example.com", "a long passphrase here");
+        signupService.signUp("Test User", "case-" + id + "@example.com", "a long passphrase here");
 
-        assertThat(signupService.signUp("CASE-" + id + "@Example.COM", "a long passphrase here"))
+        assertThat(signupService.signUp("Test User", "CASE-" + id + "@Example.COM", "a long passphrase here"))
                 .isEqualTo(SignupOutcome.EMAIL_ALREADY_REGISTERED);
     }
 
     @Test
     void weakPasswordIsRejectedIdenticallyForNewAndExistingEmails() {
         String existing = "exists-" + uniqueId() + "@example.com";
-        signupService.signUp(existing, "a long passphrase here");
+        signupService.signUp("Test User", existing, "a long passphrase here");
 
         for (String weak : new String[] {"short", "swiftdrop swiftdrop"}) {
             WeakPasswordException forExisting = catchWeak(existing, weak);
@@ -75,7 +87,7 @@ class SignupServiceIT {
 
     private WeakPasswordException catchWeak(String email, String password) {
         try {
-            signupService.signUp(email, password);
+            signupService.signUp("Test User", email, password);
         } catch (WeakPasswordException e) {
             return e;
         }
@@ -99,7 +111,7 @@ class SignupServiceIT {
             for (int i = 0; i < CONCURRENT_SIGNUPS; i++) {
                 results.add(pool.submit(() -> {
                     startTogether.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                    return signupService.signUp(email, "a long passphrase here") == SignupOutcome.ACCOUNT_CREATED;
+                    return signupService.signUp("Test User", email, "a long passphrase here") == SignupOutcome.ACCOUNT_CREATED;
                 }));
             }
             startTogether.countDown();

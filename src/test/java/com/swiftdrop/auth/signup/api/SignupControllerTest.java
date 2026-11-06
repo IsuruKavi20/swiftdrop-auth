@@ -14,6 +14,7 @@ import com.swiftdrop.auth.signup.WeakPasswordException;
 import com.swiftdrop.auth.signup.api.dto.SignupAcceptedResponse;
 import com.swiftdrop.auth.signup.api.dto.SignupRequest;
 import com.swiftdrop.auth.user.InvalidEmailException;
+import com.swiftdrop.auth.user.InvalidPersonNameException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -45,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SignupControllerTest {
 
     private static final String SIGNUP = ApiPaths.AUTH + "/signup";
+    private static final String NAME = "Isuru Kavinda";
     private static final String PASSWORD = "a long secret passphrase";
 
     @Autowired
@@ -59,9 +61,9 @@ class SignupControllerTest {
 
     @Test
     void newAccountGets202WithoutLogin() throws Exception {
-        when(signupService.signUp("isuru@x.com", PASSWORD)).thenReturn(SignupOutcome.ACCOUNT_CREATED);
+        when(signupService.signUp(NAME, "isuru@x.com", PASSWORD)).thenReturn(SignupOutcome.ACCOUNT_CREATED);
 
-        signUp("{\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\"}")
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\"}")
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value(SignupAcceptedResponse.ACCEPTED.message()))
                 .andExpect(header().exists(RequestIdFilter.HEADER))
@@ -70,18 +72,18 @@ class SignupControllerTest {
 
     @Test
     void existingAccountGetsExactlyTheSameResponse() throws Exception {
-        when(signupService.signUp("taken@x.com", PASSWORD)).thenReturn(SignupOutcome.EMAIL_ALREADY_REGISTERED);
+        when(signupService.signUp(NAME, "taken@x.com", PASSWORD)).thenReturn(SignupOutcome.EMAIL_ALREADY_REGISTERED);
 
-        signUp("{\"email\":\"taken@x.com\",\"password\":\"" + PASSWORD + "\"}")
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"taken@x.com\",\"password\":\"" + PASSWORD + "\"}")
                 .andExpect(status().isAccepted())
                 .andExpect(content().json("{\"message\":\"" + SignupAcceptedResponse.ACCEPTED.message() + "\"}", true));
     }
 
     @Test
     void weakPasswordGets400WithTheReasonButNotThePassword() throws Exception {
-        when(signupService.signUp("isuru@x.com", "tinypass")).thenThrow(new WeakPasswordException("TooShort"));
+        when(signupService.signUp(NAME, "isuru@x.com", "tinypass")).thenThrow(new WeakPasswordException("TooShort"));
 
-        signUp("{\"email\":\"isuru@x.com\",\"password\":\"tinypass\"}")
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"isuru@x.com\",\"password\":\"tinypass\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("WEAK_PASSWORD"))
                 .andExpect(jsonPath("$.errors[0].field").value("password"))
@@ -91,9 +93,9 @@ class SignupControllerTest {
 
     @Test
     void busyServerGets503WithRetryAfter() throws Exception {
-        when(signupService.signUp("isuru@x.com", PASSWORD)).thenThrow(new ServiceBusyException());
+        when(signupService.signUp(NAME, "isuru@x.com", PASSWORD)).thenThrow(new ServiceBusyException());
 
-        signUp("{\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\"}")
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\"}")
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().string("Retry-After", "1"))
                 .andExpect(jsonPath("$.code").value("SERVICE_BUSY"));
@@ -101,38 +103,57 @@ class SignupControllerTest {
 
     @Test
     void invalidEmailGets400() throws Exception {
-        when(signupService.signUp("nope", PASSWORD)).thenThrow(new InvalidEmailException());
+        when(signupService.signUp(NAME, "nope", PASSWORD)).thenThrow(new InvalidEmailException());
 
-        signUp("{\"email\":\"nope\",\"password\":\"" + PASSWORD + "\"}")
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"nope\",\"password\":\"" + PASSWORD + "\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_EMAIL"));
     }
 
     @Test
-    void missingFieldsGet400BeforeTheServiceIsCalled() throws Exception {
-        signUp("{\"email\":\"\"}")
+    void missingNameGets400BeforeTheServiceIsCalled() throws Exception {
+        signUp("{\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 
-        verify(signupService, never()).signUp(anyString(), anyString());
+        verify(signupService, never()).signUp(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void invalidNameGets400WithoutEchoingIt() throws Exception {
+        when(signupService.signUp("Bad\u202Ename", "isuru@x.com", PASSWORD)).thenThrow(new InvalidPersonNameException());
+
+        signUp("{\"name\":\"Bad\u202Ename\",\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NAME"))
+                .andExpect(content().string(not(containsString("Bad"))));
+    }
+
+    @Test
+    void missingFieldsGet400BeforeTheServiceIsCalled() throws Exception {
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verify(signupService, never()).signUp(anyString(), anyString(), anyString());
     }
 
     @Test
     void extraFieldsLikeRoleAreRejected() throws Exception {
-        signUp("{\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\",\"role\":\"ADMIN\"}")
+        signUp("{\"name\":\"" + NAME + "\",\"email\":\"isuru@x.com\",\"password\":\"" + PASSWORD + "\",\"role\":\"ADMIN\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
 
-        verify(signupService, never()).signUp(anyString(), anyString());
+        verify(signupService, never()).signUp(anyString(), anyString(), anyString());
     }
 
     @Test
     void requestDtoNeverPrintsThePassword() {
-        assertThatToString(new SignupRequest("isuru@x.com", PASSWORD).toString());
+        assertThatToString(new SignupRequest(NAME, "isuru@x.com", PASSWORD).toString());
     }
 
     private static void assertThatToString(String text) {
-        org.assertj.core.api.Assertions.assertThat(text).doesNotContain(PASSWORD).doesNotContain("isuru@x.com");
+        org.assertj.core.api.Assertions.assertThat(text).doesNotContain(PASSWORD).doesNotContain("isuru@x.com").doesNotContain(NAME);
     }
 
     private ResultActions signUp(String json) throws Exception {

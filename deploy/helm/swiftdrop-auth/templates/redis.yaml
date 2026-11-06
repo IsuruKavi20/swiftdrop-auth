@@ -1,0 +1,83 @@
+{{- if .Values.redis.enabled }}
+{{- $name := printf "%s-redis" (include "auth.name" .) }}
+# Redis: shared rate limits + the 5-minute Google login session (lesson 16). Nothing in it must survive a restart
+# (buckets refill, a login in progress is retried), so no disk. TLS only (plain port off), password, memory cap.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "auth.selector" (list . "redis") | nindent 4 }}
+  ports:
+    - { name: redis, port: 6379, targetPort: 6379 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "auth.labels" . | nindent 4 }}
+  annotations:
+    reloader.stakater.com/auto: "true"   # restart when its TLS certificate is renewed
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "auth.selector" (list . "redis") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auth.labels" . | nindent 8 }}
+        {{- include "auth.selector" (list . "redis") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999         # the "redis" user of the alpine image
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: redis-password } }
+          # The password is written into a private config file (echo is a shell built-in, so it never appears
+          # in any process list), then Redis starts from that file: not visible in "ps" or /proc/1/cmdline
+          command: ["sh", "-c"]
+          args:
+            - >-
+              umask 077 &&
+              echo "requirepass $REDIS_PASSWORD" > /conf/redis.conf &&
+              exec redis-server /conf/redis.conf
+              --port 0 --tls-port 6379
+              --tls-cert-file /tls/tls.crt --tls-key-file /tls/tls.key --tls-ca-cert-file /tls/ca.crt
+              --tls-auth-clients no
+              --maxmemory {{ .Values.redis.maxMemory }} --maxmemory-policy volatile-ttl
+              --save "" --appendonly no --protected-mode yes
+          ports:
+            - { name: redis, containerPort: 6379 }
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "REDISCLI_AUTH=\"$REDIS_PASSWORD\" redis-cli --tls --cacert /tls/ca.crt -h 127.0.0.1 ping | grep -q PONG"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "REDISCLI_AUTH=\"$REDIS_PASSWORD\" redis-cli --tls --cacert /tls/ca.crt -h 127.0.0.1 ping | grep -q PONG"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources: {{- toYaml .Values.redis.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tls, mountPath: /tls, readOnly: true }
+            - { name: data, mountPath: /data }
+            - { name: conf, mountPath: /conf }
+      volumes:
+        - name: tls
+          secret: { secretName: {{ $name }}-tls, defaultMode: 0440 }
+        - { name: data, emptyDir: {} }
+        - { name: conf, emptyDir: { medium: Memory, sizeLimit: 1Mi } }   # in RAM: the password never touches a disk
+{{- end }}

@@ -38,6 +38,25 @@ class OpenApiDocsIT {
                     .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"));
         }
 
+        /**
+         * Production has no API map (/v3/api-docs is off), so the team gets the contract as a file instead:
+         * regenerated on every build, it can never drift from the code. Import it into Swagger UI or Postman.
+         */
+        @Test
+        void exportsTheContractForOtherTeams() throws Exception {
+            String json = mockMvc.perform(get("/v3/api-docs"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+            String pretty = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readTree(json));
+
+            java.nio.file.Path target = java.nio.file.Path.of("docs", "integration", "openapi.json");
+            java.nio.file.Files.writeString(target, pretty + System.lineSeparator());
+
+            org.assertj.core.api.Assertions.assertThat(pretty).contains("/api/v1/auth/login", "/oauth2/token");
+            org.assertj.core.api.Assertions.assertThat(pretty).doesNotContain("/api/v1/dev/test-tokens");
+        }
+
         @Test
         void requestDtoFieldsAreDocumentedButEntitiesAreNot() throws Exception {
             mockMvc.perform(get("/v3/api-docs"))

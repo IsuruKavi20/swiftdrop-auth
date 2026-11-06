@@ -1,6 +1,8 @@
 package com.swiftdrop.auth.google;
 
 import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.user.IdentityProfile;
+import com.swiftdrop.auth.user.PicturePolicy;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -28,11 +30,14 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
     private final GoogleAccountLinker linker;
     private final HandoffCodes handoffCodes;
     private final FrontendProperties frontend;
+    private final PicturePolicy pictures;
 
-    GoogleLoginSuccessHandler(GoogleAccountLinker linker, HandoffCodes handoffCodes, FrontendProperties frontend) {
+    GoogleLoginSuccessHandler(GoogleAccountLinker linker, HandoffCodes handoffCodes, FrontendProperties frontend,
+                              PicturePolicy pictures) {
         this.linker = linker;
         this.handoffCodes = handoffCodes;
         this.frontend = frontend;
+        this.pictures = pictures;
     }
 
     @Override
@@ -47,7 +52,8 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
             }
             OidcUser google = (OidcUser) authentication.getPrincipal();
             GoogleIdentity identity = new GoogleIdentity(google.getSubject(), google.getEmail(),
-                    Boolean.TRUE.equals(google.getEmailVerified()), google.getClaimAsString("hd"));
+                    Boolean.TRUE.equals(google.getEmailVerified()), google.getClaimAsString("hd"),
+                    pictures.trustedOnly(profileOf(google)));
             fragment = "code=" + handoffCodes.issue(linker.link(identity), challenge);
         } catch (RuntimeException refused) {
             // Refused account, or e.g. two first logins racing: details in our log, a generic error for the browser
@@ -55,6 +61,12 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
             fragment = GoogleLoginFailureHandler.ERROR_FRAGMENT;
         }
         response.sendRedirect(frontend.link(CALLBACK_PATH + "#" + fragment).toString());
+    }
+
+    // Standard OIDC profile claims from the signed ID token; all optional, unusable values are dropped
+    private static IdentityProfile profileOf(OidcUser google) {
+        return IdentityProfile.fromProvider(google.getFullName(), google.getGivenName(), google.getFamilyName(),
+                google.getPicture(), google.getLocale());
     }
 
     private static String browserChallenge(HttpServletRequest request) {

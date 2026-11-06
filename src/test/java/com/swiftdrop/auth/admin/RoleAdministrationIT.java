@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.admin;
 
 import com.swiftdrop.auth.TestcontainersConfiguration;
+import com.swiftdrop.auth.token.TestPeople;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.Role;
@@ -101,7 +102,7 @@ class RoleAdministrationIT {
     @Test
     void nonAdminCannotManageRoles() throws Exception {
         UUID target = customer();
-        String courierToken = "Bearer " + issuer.issue(UUID.randomUUID(), List.of("COURIER"),
+        String courierToken = "Bearer " + issuer.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("COURIER"),
                 List.of("delivery:read-own", "delivery:update-status")).value();
 
         mockMvc.perform(put(ADMIN_USERS + "/" + target + "/roles/ADMIN").header("Authorization", courierToken))
@@ -114,7 +115,7 @@ class RoleAdministrationIT {
         UUID adminId = customer();
         transactions.executeWithoutResult(status -> users.findById(adminId).orElseThrow()
                 .addRole(roles.findByName(RoleName.ADMIN).orElseThrow()));
-        String ownToken = "Bearer " + issuer.issue(adminId, List.of("ADMIN"), List.of("user:read", "user:manage-roles")).value();
+        String ownToken = "Bearer " + issuer.issue(adminId, TestPeople.SOMEONE, List.of("ADMIN"), List.of("user:read", "user:manage-roles")).value();
 
         mockMvc.perform(delete(ADMIN_USERS + "/" + adminId + "/roles/ADMIN").header("Authorization", ownToken))
                 .andExpect(status().isConflict())
@@ -177,7 +178,7 @@ class RoleAdministrationIT {
     }
 
     private String admin() {
-        return "Bearer " + issuer.issue(UUID.randomUUID(), List.of("ADMIN"),
+        return "Bearer " + issuer.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("ADMIN"),
                 List.of("user:read", "user:manage-roles")).value();
     }
 

@@ -42,6 +42,18 @@ public class OAuthAccount {
         this.createdAt = createdAt;
     }
 
+    String getProvider() {
+        return provider;
+    }
+
+    String getProviderUserId() {
+        return providerUserId;
+    }
+
+    Instant getCreatedAt() {
+        return createdAt;
+    }
+
     UUID getUserId() {
         return userId;
     }

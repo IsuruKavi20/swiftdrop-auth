@@ -4,6 +4,7 @@ import com.swiftdrop.auth.merchant.InvalidClientException;
 import com.swiftdrop.auth.merchant.MerchantClients;
 import com.swiftdrop.auth.merchant.api.dto.TokenErrorResponse;
 import com.swiftdrop.auth.token.IssuedToken;
+import com.swiftdrop.auth.directory.ServiceClients;
 import com.swiftdrop.auth.token.TokenResponse;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -31,9 +32,11 @@ public class TokenEndpointController {
     private static final String BASIC_PREFIX = "Basic ";
 
     private final MerchantClients clients;
+    private final ServiceClients serviceClients;
 
-    public TokenEndpointController(MerchantClients clients) {
+    public TokenEndpointController(MerchantClients clients, ServiceClients serviceClients) {
         this.clients = clients;
+        this.serviceClients = serviceClients;
     }
 
     @PostMapping(value = "/oauth2/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE,
@@ -47,7 +50,10 @@ public class TokenEndpointController {
         if (!CLIENT_CREDENTIALS.equals(grantType)) {
             return error(HttpStatus.BAD_REQUEST, "unsupported_grant_type");
         }
-        IssuedToken token = clients.issueToken(credentials[0], credentials[1]);
+        // Our own backends (svc_..., Directory API) or a merchant's software (mc_...): same grant, same answers
+        IssuedToken token = ServiceClients.isServiceClientId(credentials[0])
+                ? serviceClients.issueToken(credentials[0], credentials[1]).orElseThrow(InvalidClientException::new)
+                : clients.issueToken(credentials[0], credentials[1]);
         // RFC 6749 5.1: token responses must never be cached. No refresh token for this grant (4.4.3).
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
