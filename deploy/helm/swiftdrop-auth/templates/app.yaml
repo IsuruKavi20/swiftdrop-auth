@@ -118,6 +118,16 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-username } }
             - name: MAIL_PASSWORD
               valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-password } }
+            {{- range $i, $client := .Values.directoryClients }}
+            - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_CLIENTID
+              value: {{ $client.clientId | quote }}
+            - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_SECRETSHA256
+              valueFrom: { secretKeyRef: { name: {{ $.Values.directorySecretName }}, key: {{ printf "%s-sha256" $client.clientId | quote }} } }
+            {{- range $j, $permission := $client.permissions }}
+            - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_PERMISSIONS_{{ $j }}
+              value: {{ $permission | quote }}
+            {{- end }}
+            {{- end }}
           ports:
             - { name: http, containerPort: 9000 }
           # Java needs time to start: no liveness kills until it has started once

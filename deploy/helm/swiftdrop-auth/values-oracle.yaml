@@ -16,6 +16,12 @@ trustedProxies: '10\.0\.10\.\d{1,3}'
 
 bootstrapAdminEmail: isurukpremasiri2001@gmail.com
 
+# SwiftDrop's backend (AWS) reads people from the Directory API. Its secret is in AWS SSM
+# (/swiftdrop/dev/identity/client-secret); only the hash is here, in the Secret swiftdrop-auth-directory.
+directoryClients:
+  - clientId: svc_swiftdrop-backend
+    permissions: [directory:read, directory:read-email]
+
 ingress:
   tls:
     internalCa: false

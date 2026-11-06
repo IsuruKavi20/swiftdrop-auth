@@ -29,6 +29,14 @@ secrets:
   # key: signing-key.pem (RSA private key, PKCS#8 PEM)
   jwtName: swiftdrop-auth-jwt
 
+# Directory API service clients (identity step 5): our own backends that may read people.
+# clientId and permissions are not secret; the SHA-256 of each client's secret lives in the Secret
+# directorySecretName under the key "<clientId>-sha256" (created with kubectl, never in git).
+directoryClients: []
+#  - clientId: svc_swiftdrop-backend
+#    permissions: [directory:read, directory:read-email]
+directorySecretName: swiftdrop-auth-directory
+
 resources:
   requests: { cpu: 250m, memory: 640Mi }
   limits: { memory: 768Mi }
