@@ -48,7 +48,8 @@ versions: [Semantic Versioning](https://semver.org/).
 
 - **Identity events, part 1** (identity step 6a/6b): every change to a person is recorded in `identity_events` in
   the same transaction (per-person version, V17), and can be signed as a Security Event Token (RFC 8417,
-  `typ secevent+jwt`). Delivery to SwiftDrop follows.
+  `typ secevent+jwt`), and pushed to configured receivers (6c, RFC 8935: `swiftdrop.events.receivers`, https only,
+  retries with backoff, dead after 24 h, multi-pod safe with `SKIP LOCKED`, V18). Polling (6d) follows.
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.

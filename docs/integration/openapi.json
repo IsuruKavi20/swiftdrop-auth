@@ -1421,57 +1421,57 @@
           "container" : {
             "type" : "boolean"
           },
-          "floatingPointNumber" : {
+          "integralNumber" : {
             "type" : "boolean"
           },
           "valueNode" : {
             "type" : "boolean"
           },
-          "integralNumber" : {
-            "type" : "boolean"
-          },
-          "bigInteger" : {
+          "missingNode" : {
             "type" : "boolean"
           },
           "bigDecimal" : {
-            "type" : "boolean"
-          },
-          "missingNode" : {
             "type" : "boolean"
           },
           "nodeType" : {
             "type" : "string",
             "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
           },
+          "floatingPointNumber" : {
+            "type" : "boolean"
+          },
+          "bigInteger" : {
+            "type" : "boolean"
+          },
           "number" : {
-            "type" : "boolean"
-          },
-          "pojo" : {
-            "type" : "boolean"
-          },
-          "boolean" : {
-            "type" : "boolean"
-          },
-          "double" : {
-            "type" : "boolean"
-          },
-          "int" : {
-            "type" : "boolean"
-          },
-          "binary" : {
             "type" : "boolean"
           },
           "long" : {
             "type" : "boolean"
           },
-          "short" : {
+          "string" : {
             "type" : "boolean"
           },
           "textual" : {
             "type" : "boolean",
             "deprecated" : true
           },
-          "string" : {
+          "int" : {
+            "type" : "boolean"
+          },
+          "boolean" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "binary" : {
+            "type" : "boolean"
+          },
+          "short" : {
+            "type" : "boolean"
+          },
+          "double" : {
             "type" : "boolean"
           },
           "embeddedValue" : {
