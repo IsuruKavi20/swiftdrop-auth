@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.google;
 
 import com.swiftdrop.auth.session.RevokeReason;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.session.SessionService;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.InvalidEmailException;
@@ -34,13 +35,16 @@ public class GoogleAccountLinker {
     private final SessionService sessions;
     private final Clock clock;
 
+    private final IdentityEvents identityEvents;
+
     GoogleAccountLinker(OAuthAccountRepository accounts, UserRepository users, RoleRepository roles,
-                        SessionService sessions, Clock clock) {
+                        SessionService sessions, Clock clock, IdentityEvents identityEvents) {
         this.accounts = accounts;
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;
         this.clock = clock;
+        this.identityEvents = identityEvents;
     }
 
     /** Returns our user id, or throws {@link GoogleLoginRefusedException}. */
@@ -53,7 +57,9 @@ public class GoogleAccountLinker {
         Optional<OAuthAccount> linked = accounts.findByProviderAndProviderUserId(PROVIDER, google.sub());
         if (linked.isPresent()) {
             User returning = requireUsable(lock(linked.get().getUserId()), now);
-            returning.applyProviderProfile(google.profile(), now);
+            if (returning.applyProviderProfile(google.profile(), now)) {
+                identityEvents.profileUpdated(returning);
+            }
             return returning.getId();
         }
         EmailAddress email = emailOf(google);
@@ -67,12 +73,18 @@ public class GoogleAccountLinker {
         if (accounts.existsByUserIdAndProvider(user.getId(), PROVIDER)) {
             throw new GoogleLoginRefusedException("Account already linked to another Google account");
         }
-        if (!user.isEmailVerified()) {
+        boolean reclaimed = !user.isEmailVerified();
+        if (reclaimed) {
             reclaim(user, now);
         }
         accounts.save(new OAuthAccount(user.getId(), PROVIDER, google.sub(), now));
         // A name the user typed at sign-up stays; Google may only fill fields they never set (e.g. a photo)
-        user.applyProviderProfile(google.profile(), now);
+        boolean profileChanged = user.applyProviderProfile(google.profile(), now);
+        if (reclaimed) {
+            identityEvents.registered(user);   // first time this mailbox is proven: the person now exists
+        } else if (profileChanged) {
+            identityEvents.profileUpdated(user);
+        }
         log.info("Google account linked: user={}", user.getId());
         return user.getId();
     }
@@ -94,6 +106,7 @@ public class GoogleAccountLinker {
         user.applyProviderProfile(google.profile(), now);
         user.addRole(roles.findByName(RoleName.CUSTOMER).orElseThrow());
         UUID id = users.saveAndFlush(user).getId();
+        identityEvents.registered(user);
         accounts.save(new OAuthAccount(id, PROVIDER, google.sub(), now));
         log.info("New account created through Google: user={}", id);
         return id;

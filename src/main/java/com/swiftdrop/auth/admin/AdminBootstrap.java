@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.admin;
 
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
@@ -31,10 +32,13 @@ public class AdminBootstrap {
     private final RoleRepository roles;
     private final String adminEmail;
 
+    private final IdentityEvents identityEvents;
+
     public AdminBootstrap(UserRepository users, RoleRepository roles,
-                          @Value("${swiftdrop.bootstrap.admin-email:}") String adminEmail) {
+                          @Value("${swiftdrop.bootstrap.admin-email:}") String adminEmail, IdentityEvents identityEvents) {
         this.users = users;
         this.roles = roles;
+        this.identityEvents = identityEvents;
         this.adminEmail = adminEmail;
     }
 
@@ -56,6 +60,7 @@ public class AdminBootstrap {
         }
         if (!user.hasRole(RoleName.ADMIN)) {
             user.addRole(roles.findByName(RoleName.ADMIN).orElseThrow());
+            identityEvents.rolesChanged(user);
             log.info("Bootstrap admin: ADMIN granted to user={}", user.getId());
         }
     }

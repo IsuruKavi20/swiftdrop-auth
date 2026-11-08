@@ -118,6 +118,16 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-username } }
             - name: MAIL_PASSWORD
               valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: mail-password } }
+            {{- range $i, $receiver := .Values.eventReceivers }}
+            - name: SWIFTDROP_EVENTS_RECEIVERS_{{ $i }}_ID
+              value: {{ $receiver.id | quote }}
+            - name: SWIFTDROP_EVENTS_RECEIVERS_{{ $i }}_AUDIENCE
+              value: {{ $receiver.audience | quote }}
+            {{- if $receiver.pushUrl }}
+            - name: SWIFTDROP_EVENTS_RECEIVERS_{{ $i }}_PUSHURL
+              value: {{ $receiver.pushUrl | quote }}
+            {{- end }}
+            {{- end }}
             {{- range $i, $client := .Values.directoryClients }}
             - name: SWIFTDROP_DIRECTORY_CLIENTS_{{ $i }}_CLIENTID
               value: {{ $client.clientId | quote }}

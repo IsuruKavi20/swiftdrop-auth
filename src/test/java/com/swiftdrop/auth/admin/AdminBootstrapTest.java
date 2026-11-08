@@ -32,7 +32,7 @@ class AdminBootstrapTest {
         when(users.findWithRolesByEmail("boss@example.com")).thenReturn(Optional.of(user));
         when(roles.findByName(RoleName.ADMIN)).thenReturn(Optional.of(admin));
 
-        new AdminBootstrap(users, roles, "Boss@Example.com").grantConfiguredAdmin();
+        new AdminBootstrap(users, roles, "Boss@Example.com", org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class)).grantConfiguredAdmin();
 
         assertThat(user.getRoles()).contains(admin);
     }
@@ -42,14 +42,14 @@ class AdminBootstrapTest {
         User user = user(false);
         when(users.findWithRolesByEmail("boss@example.com")).thenReturn(Optional.of(user));
 
-        new AdminBootstrap(users, roles, "boss@example.com").grantConfiguredAdmin();
+        new AdminBootstrap(users, roles, "boss@example.com", org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class)).grantConfiguredAdmin();
 
         assertThat(user.getRoles()).doesNotContain(admin);
     }
 
     @Test
     void nothingConfiguredMeansNothingHappens() {
-        new AdminBootstrap(users, roles, "").grantConfiguredAdmin();
+        new AdminBootstrap(users, roles, "", org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class)).grantConfiguredAdmin();
 
         verify(users, never()).findWithRolesByEmail(anyString());
     }
@@ -58,7 +58,7 @@ class AdminBootstrapTest {
     void missingAccountIsOnlyLogged() {
         when(users.findWithRolesByEmail("boss@example.com")).thenReturn(Optional.empty());
 
-        new AdminBootstrap(users, roles, "boss@example.com").grantConfiguredAdmin();
+        new AdminBootstrap(users, roles, "boss@example.com", org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class)).grantConfiguredAdmin();
 
         verify(roles, never()).findByName(RoleName.ADMIN);
     }

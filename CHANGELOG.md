@@ -46,6 +46,26 @@ versions: [Semantic Versioning](https://semver.org/).
   with `directory:read` / `directory:read-email`; `GET /api/v1/directory/users/{id}`, `POST …/lookup` (≤100),
   `GET …/users` (role/status filters, SCIM paging ≤100, living accounts only). Email reads logged.
 
+- **Identity events, part 1** (identity step 6a/6b): every change to a person is recorded in `identity_events` in
+  the same transaction (per-person version, V17), and can be signed as a Security Event Token (RFC 8417,
+  `typ secevent+jwt`), and pushed to configured receivers (6c, RFC 8935: `swiftdrop.events.receivers`, https only,
+  retries with backoff, dead after 24 h, multi-pod safe with `SKIP LOCKED`, V18), and collectable by polling
+  (6d, RFC 8936: `POST /api/v1/events/poll`, own receiver only, `events:read`; states DEAD vs REJECTED, V19).
+
+- **Role applications, part 1** (identity step 7a): `POST/GET /api/v1/me/role-applications`, `DELETE …/{id}`
+  (COURIER or DISPATCHER; one open per role; 7 days after a rejection; separation of duties: never COURIER and
+  DISPATCHER together, also enforced by the admin grant endpoint). Permissions `role:approve-courier` (ADMIN,
+  DISPATCHER) and `role:approve-dispatcher` (ADMIN). V20.
+- **Role application decisions** (identity step 7b): `GET /api/v1/admin/role-applications` (only roles the caller may
+  decide) and `POST …/{id}/decision` (APPROVE/REJECT with reason; no self-approval, enforced server-side; applicant
+  re-checked at decision time; role + "roles changed" event in one transaction). The applicant is emailed the
+  decision (with the reason) through the outbox (7c).
+- **Role application hardening** (identity step 7d): decisions lock before reading (no lost concurrent decision),
+  the approver is re-checked in the database, withdraw locks, queue `count` 1–100 (default 50), nobody grants a role
+  to themselves (`CANNOT_GRANT_OWN_ROLE`), control characters removed from notes/reasons, queue rate limit 60/min.
+- **Poll-only event receivers**: `push-url` is optional; a receiver without one is never pushed to and collects
+  its events by polling (RFC 8936). Helm `eventReceivers`; Oracle: `swiftdrop-backend` poll-only, `events:read`.
+
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.
 - Integration guide: tokens now carry identity claims; `sub` stays the only user id (never link by email), and
@@ -54,6 +74,10 @@ versions: [Semantic Versioning](https://semver.org/).
   bidi and control characters rejected with `400 invalid-name`). Clients must send the "Full name" field.
 
 ### Security
+- Step 6 review fixes: identity events commit in sequence order (no event can be skipped by the delivery
+  bookmark), deleting an account wipes the personal data of its earlier events, events older than 30 days are
+  deleted, sends are leased in small batches (no double send), a broken event can't block delivery, only real changes
+  are recorded, malformed poll ids answer 400.
 - Step 3 review fixes: every "my account" action requires an active account (a deleted/disabled account's
   still-valid token gets 401); deletion erases the email-change history; wrong passwords on sensitive actions use
   their own counter (V16) instead of the login lockout; undo links last 72 hours; deletion is idempotent and drops

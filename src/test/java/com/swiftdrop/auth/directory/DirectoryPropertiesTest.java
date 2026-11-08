@@ -43,6 +43,14 @@ class DirectoryPropertiesTest {
     }
 
     @Test
+    void anEventsOnlyClientNeedsNoDirectoryPermission() {
+        assertThat(new DirectoryProperties.Client("svc_swiftdrop-backend", HASH, List.of("events:read"))
+                .permissions()).containsExactly("events:read");
+        assertThatThrownBy(() -> new DirectoryProperties.Client("svc_swiftdrop", HASH, List.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void refusesDuplicateClientIds() {
         DirectoryProperties.Client client = new DirectoryProperties.Client("svc_swiftdrop", HASH,
                 List.of("directory:read"));

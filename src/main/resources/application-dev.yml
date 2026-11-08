@@ -31,3 +31,10 @@ swiftdrop:
   # Their React app (5173) and any local frontend on 3000 may call us from the browser
   cors:
     allowed-origins: http://localhost:5173, http://localhost:3000
+  # Identity events to a SwiftDrop backend running on this laptop too (identity step 6). Leave push-url out for
+  # poll-only. The backend polls with svc_swiftdrop-backend (events:read) from swiftdrop.directory.clients.
+  # events:
+  #   receivers:
+  #     - id: swiftdrop-backend
+  #       audience: swiftdrop-backend
+  #       push-url: http://localhost:8080/internal/identity-events

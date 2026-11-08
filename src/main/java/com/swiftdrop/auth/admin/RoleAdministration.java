@@ -1,10 +1,12 @@
 package com.swiftdrop.auth.admin;
 
 import com.swiftdrop.auth.common.error.DomainException;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.common.error.ErrorCode;
 import com.swiftdrop.auth.session.RevokeReason;
 import com.swiftdrop.auth.session.SessionService;
 import com.swiftdrop.auth.user.EmailAddress;
+import com.swiftdrop.auth.user.RoleConflicts;
 import com.swiftdrop.auth.user.RoleName;
 import com.swiftdrop.auth.user.RoleRepository;
 import com.swiftdrop.auth.user.User;
@@ -30,10 +32,14 @@ public class RoleAdministration {
     private final RoleRepository roles;
     private final SessionService sessions;
 
-    public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions) {
+    private final IdentityEvents identityEvents;
+
+    public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions,
+                              IdentityEvents identityEvents) {
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;
+        this.identityEvents = identityEvents;
     }
 
     @Transactional(readOnly = true)
@@ -50,13 +56,22 @@ public class RoleAdministration {
             // Merchants are approved through their own flow (Step 13), never by a bare role grant
             throw new AdminException(ErrorCode.ROLE_NOT_ASSIGNABLE);
         }
+        if (actorId.equals(userId)) {
+            // Four-eyes: nobody gives roles to themselves (the same rule as role applications)
+            throw new AdminException(ErrorCode.CANNOT_GRANT_OWN_ROLE);
+        }
         User user = load(userId);
         if (!user.isEmailVerified() || user.getStatus() != UserStatus.ACTIVE) {
             // Same rule as AdminBootstrap: a role (above all ADMIN) only goes to a proven, active account
             throw new AdminException(ErrorCode.ACCOUNT_NOT_ELIGIBLE);
         }
+        if (RoleConflicts.conflictFor(user, role).isPresent()) {
+            // Separation of duties: the same rule as role applications, so this endpoint can't be used to bypass it
+            throw new AdminException(ErrorCode.ROLE_CONFLICT);
+        }
         if (!user.hasRole(role)) {
             user.addRole(roles.findByName(role).orElseThrow());
+            identityEvents.rolesChanged(user);
             log.info("Role granted: role={} user={} by={}", role, userId, actorId);
         }
         return UserView.of(user);
@@ -88,6 +103,7 @@ public class RoleAdministration {
             }
         }
         user.removeRole(role);
+        identityEvents.rolesChanged(user);
         sessions.endAllSessions(userId, RevokeReason.ROLE_CHANGED);
         log.info("Role revoked: role={} user={} by={}", role, userId, actorId);
         return UserView.of(user);

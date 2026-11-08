@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.session;
 
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.token.AccessTokenIssuer;
 import com.swiftdrop.auth.token.IdTokenIssuer;
 import com.swiftdrop.auth.token.IdentityClaims;
@@ -35,14 +36,17 @@ public class SessionService {
     private final SessionProperties properties;
     private final Clock clock;
 
+    private final IdentityEvents identityEvents;
+
     SessionService(RefreshTokenRepository tokens, UserRepository users, AccessTokenIssuer accessTokens,
-                   IdTokenIssuer idTokens, SessionProperties properties, Clock clock) {
+                   IdTokenIssuer idTokens, SessionProperties properties, Clock clock, IdentityEvents identityEvents) {
         this.tokens = tokens;
         this.users = users;
         this.accessTokens = accessTokens;
         this.idTokens = idTokens;
         this.properties = properties;
         this.clock = clock;
+        this.identityEvents = identityEvents;
     }
 
     /**
@@ -110,6 +114,9 @@ public class SessionService {
     @Transactional
     public void endAllSessions(UUID userId, RevokeReason reason) {
         int revoked = tokens.revokeAllForUser(userId, reason, clock.instant());
+        if (revoked > 0) {
+            identityEvents.sessionsRevoked(userId, reason.name());
+        }
         log.info("All sessions ended: user={} reason={} tokens={}", userId, reason, revoked);
     }
 

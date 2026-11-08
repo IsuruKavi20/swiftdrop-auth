@@ -7,7 +7,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * {@code swiftdrop.directory.clients}: our own backends allowed to use the Directory API (client credentials). Only
+ * {@code swiftdrop.directory.clients}: our own backends (service clients, client credentials) and what they may do:
+ * the Directory API (step 5) and/or polling identity events (step 6d). Only
  * the SHA-256 of each secret is configured. A bad entry stops the start: a typo must never widen access.
  */
 @ConfigurationProperties("swiftdrop.directory")
@@ -15,6 +16,8 @@ public record DirectoryProperties(List<Client> clients) {
 
     public static final String READ = "directory:read";
     public static final String READ_EMAIL = "directory:read-email";
+    /** Identity events receivers poll with it (identity step 6d). */
+    public static final String EVENTS_READ = "events:read";
 
     public DirectoryProperties {
         clients = clients == null ? List.of() : List.copyOf(clients);
@@ -27,7 +30,7 @@ public record DirectoryProperties(List<Client> clients) {
 
         private static final Pattern CLIENT_ID = Pattern.compile("^svc_[a-z0-9-]{3,40}$");
         private static final Pattern SHA256_HEX = Pattern.compile("^[0-9a-f]{64}$");
-        private static final Set<String> KNOWN = Set.of(READ, READ_EMAIL);
+        private static final Set<String> KNOWN = Set.of(READ, READ_EMAIL, EVENTS_READ);
 
         public Client {
             if (clientId == null || !CLIENT_ID.matcher(clientId).matches()) {
@@ -37,8 +40,10 @@ public record DirectoryProperties(List<Client> clients) {
                 throw new IllegalArgumentException("directory secret-sha256 must be 64 lowercase hex characters");
             }
             permissions = permissions == null ? List.of() : List.copyOf(permissions);
-            if (!KNOWN.containsAll(permissions) || !permissions.contains(READ)) {
-                throw new IllegalArgumentException("directory permissions: directory:read [+ directory:read-email]");
+            boolean emailWithoutRead = permissions.contains(READ_EMAIL) && !permissions.contains(READ);
+            if (permissions.isEmpty() || !KNOWN.containsAll(permissions) || emailWithoutRead) {
+                throw new IllegalArgumentException(
+                        "service client permissions: directory:read [+ directory:read-email] and/or events:read");
             }
         }
 

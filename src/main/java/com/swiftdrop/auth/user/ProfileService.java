@@ -26,11 +26,13 @@ public class ProfileService {
 
     private final UserRepository users;
     private final PicturePolicy pictures;
+    private final IdentityEvents events;
     private final Clock clock;
 
-    ProfileService(UserRepository users, PicturePolicy pictures, Clock clock) {
+    ProfileService(UserRepository users, PicturePolicy pictures, IdentityEvents events, Clock clock) {
         this.users = users;
         this.pictures = pictures;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -55,7 +57,9 @@ public class ProfileService {
                         ? pictures.requireTrusted(IdentityProfile.requireSafePictureUrl(patch.valueOf("picture")))
                         : user.getPictureUrl(),
                 patch.touches("locale") ? IdentityProfile.requireLanguageTag(patch.valueOf("locale")) : user.getLocale());
-        user.setOwnProfile(edited, clock.instant());
+        if (user.setOwnProfile(edited, clock.instant())) {
+            events.profileUpdated(user);
+        }
         return view(user);
     }
 

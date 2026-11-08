@@ -180,7 +180,19 @@ swiftdrop:
       # Directory (service clients only); GET /users/{id} can't be expressed as an exact path (see the plan)
       - {name: directory-list, method: GET, path: /api/v1/directory/users, per-minute: 120}
       - {name: directory-lookup, method: POST, path: /api/v1/directory/users/lookup, per-minute: 120}
+      - {name: events-poll, method: POST, path: /api/v1/events/poll, per-minute: 120}
+      - {name: role-apply, method: POST, path: /api/v1/me/role-applications, per-minute: 5}
+      - {name: role-queue, method: GET, path: /api/v1/admin/role-applications, per-minute: 60}
       - {name: dev-test-tokens, method: POST, path: /api/v1/dev/test-tokens, per-minute: 30}
+  # Identity events (identity step 6): signed SETs pushed to receivers (RFC 8935). Per environment, e.g.
+  # receivers: [{id: swiftdrop-backend, audience: swiftdrop-backend, push-url: https://api.../internal/identity-events}]
+  # Env form: SWIFTDROP_EVENTS_RECEIVERS_0_ID, ..._0_AUDIENCE, ..._0_PUSHURL
+  events:
+    push-enabled: true
+    push-interval: 2s
+    # Lines (and their delivery rows) are deleted after this; a receiver down longer rebuilds from the Directory API
+    retention: 30d
+    receivers: []
   # Directory API service clients (identity step 5): SwiftDrop's backend logs in with client credentials.
   # Per environment, from secrets (never in git): client-id (svc_...), secret-sha256 (hex SHA-256 of the secret,
   # e.g. `printf '%s' "$SECRET" | sha256sum`), permissions (directory:read, optionally directory:read-email).

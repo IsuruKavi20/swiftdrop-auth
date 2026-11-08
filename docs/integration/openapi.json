@@ -243,6 +243,53 @@
         }
       }
     },
+    "/api/v1/me/role-applications" : {
+      "get" : {
+        "tags" : [ "role-application-controller" ],
+        "operationId" : "mine",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/RoleApplicationView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "role-application-controller" ],
+        "operationId" : "apply_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApplyBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RoleApplicationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/password" : {
       "post" : {
         "tags" : [ "account-controller" ],
@@ -288,6 +335,35 @@
         "responses" : {
           "200" : {
             "description" : "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/events/poll" : {
+      "post" : {
+        "tags" : [ "event-poll-controller" ],
+        "operationId" : "poll",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PollRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
           }
         }
       }
@@ -545,6 +621,43 @@
         }
       }
     },
+    "/api/v1/admin/role-applications/{id}/decision" : {
+      "post" : {
+        "tags" : [ "role-application-admin-controller" ],
+        "operationId" : "decide",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RoleApplicationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/merchants/{merchantId}/status" : {
       "post" : {
         "tags" : [ "admin-merchant-controller" ],
@@ -585,7 +698,7 @@
     "/api/v1/admin/merchants/{merchantId}/decision" : {
       "post" : {
         "tags" : [ "admin-merchant-controller" ],
-        "operationId" : "decide",
+        "operationId" : "decide_1",
         "parameters" : [ {
           "name" : "merchantId",
           "in" : "path",
@@ -817,6 +930,54 @@
         }
       }
     },
+    "/api/v1/admin/role-applications" : {
+      "get" : {
+        "tags" : [ "role-application-admin-controller" ],
+        "operationId" : "queue",
+        "parameters" : [ {
+          "name" : "role",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "COURIER", "DISPATCHER" ]
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "PENDING",
+            "enum" : [ "PENDING", "APPROVED", "REJECTED", "WITHDRAWN" ]
+          }
+        }, {
+          "name" : "count",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ApplicationForApprover"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/merchants" : {
       "get" : {
         "tags" : [ "admin-merchant-controller" ],
@@ -922,6 +1083,26 @@
         "responses" : {
           "200" : {
             "description" : "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/me/role-applications/{id}" : {
+      "delete" : {
+        "tags" : [ "role-application-controller" ],
+        "operationId" : "withdraw",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
           }
         }
       }
@@ -1191,6 +1372,52 @@
           }
         }
       },
+      "ApplyBody" : {
+        "type" : "object",
+        "properties" : {
+          "role" : {
+            "type" : "string",
+            "enum" : [ "COURIER", "DISPATCHER" ]
+          },
+          "note" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "role" ]
+      },
+      "RoleApplicationView" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "CUSTOMER", "MERCHANT", "COURIER", "DISPATCHER", "ADMIN" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "APPROVED", "REJECTED", "WITHDRAWN" ]
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decided_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decision_reason" : {
+            "type" : "string"
+          }
+        }
+      },
       "PasswordChangeBody" : {
         "type" : "object",
         "properties" : {
@@ -1247,6 +1474,50 @@
           }
         },
         "required" : [ "current_password", "new_email" ]
+      },
+      "PollRequest" : {
+        "type" : "object",
+        "properties" : {
+          "ack" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "maxItems" : 1000,
+            "minItems" : 0
+          },
+          "setErrs" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/SetError"
+            }
+          },
+          "maxEvents" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 0
+          },
+          "returnImmediately" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "SetError" : {
+        "type" : "object",
+        "properties" : {
+          "err" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          }
+        }
       },
       "LookupBody" : {
         "type" : "object",
@@ -1376,6 +1647,21 @@
         },
         "required" : [ "token" ]
       },
+      "DecisionBody" : {
+        "type" : "object",
+        "properties" : {
+          "decision" : {
+            "type" : "string",
+            "enum" : [ "APPROVE", "REJECT" ]
+          },
+          "reason" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "decision" ]
+      },
       "MerchantStatusRequest" : {
         "type" : "object",
         "properties" : {
@@ -1424,54 +1710,54 @@
           "number" : {
             "type" : "boolean"
           },
-          "integralNumber" : {
-            "type" : "boolean"
-          },
-          "bigDecimal" : {
-            "type" : "boolean"
-          },
-          "missingNode" : {
-            "type" : "boolean"
-          },
-          "nodeType" : {
-            "type" : "string",
-            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
-          },
-          "valueNode" : {
-            "type" : "boolean"
-          },
-          "floatingPointNumber" : {
-            "type" : "boolean"
-          },
-          "bigInteger" : {
-            "type" : "boolean"
-          },
-          "short" : {
+          "boolean" : {
             "type" : "boolean"
           },
           "long" : {
             "type" : "boolean"
           },
+          "binary" : {
+            "type" : "boolean"
+          },
           "double" : {
+            "type" : "boolean"
+          },
+          "string" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
             "type" : "boolean"
           },
           "textual" : {
             "type" : "boolean",
             "deprecated" : true
           },
-          "binary" : {
-            "type" : "boolean"
-          },
-          "string" : {
+          "short" : {
             "type" : "boolean"
           },
           "int" : {
             "type" : "boolean"
           },
-          "pojo" : {
+          "nodeType" : {
+            "type" : "string",
+            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
+          },
+          "bigInteger" : {
             "type" : "boolean"
           },
-          "boolean" : {
+          "missingNode" : {
+            "type" : "boolean"
+          },
+          "integralNumber" : {
+            "type" : "boolean"
+          },
+          "floatingPointNumber" : {
+            "type" : "boolean"
+          },
+          "bigDecimal" : {
+            "type" : "boolean"
+          },
+          "valueNode" : {
             "type" : "boolean"
           },
           "embeddedValue" : {
@@ -1510,6 +1796,52 @@
             "items" : {
               "type" : "string"
             }
+          }
+        }
+      },
+      "Applicant" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ApplicationForApprover" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "CUSTOMER", "MERCHANT", "COURIER", "DISPATCHER", "ADMIN" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "APPROVED", "REJECTED", "WITHDRAWN" ]
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "applicant" : {
+            "$ref" : "#/components/schemas/Applicant"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decided_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decision_reason" : {
+            "type" : "string"
           }
         }
       },

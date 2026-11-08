@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.account;
 
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
+import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.common.web.FrontendProperties;
 import com.swiftdrop.auth.login.Reauthentication;
 import com.swiftdrop.auth.login.ReauthenticationFailedException;
@@ -48,10 +49,12 @@ public class EmailChangeService {
     private final FrontendProperties frontend;
     private final Clock clock;
 
+    private final IdentityEvents identityEvents;
+
     EmailChangeService(Reauthentication reauthentication, SessionService sessions, UserRepository users,
                        EmailChangeRequestRepository requests, ApplicationEventPublisher events,
                        TransactionTemplate transactions, SecurityEmails emails, FrontendProperties frontend,
-                       Clock clock) {
+                       Clock clock, IdentityEvents identityEvents) {
         this.reauthentication = reauthentication;
         this.sessions = sessions;
         this.users = users;
@@ -61,6 +64,7 @@ public class EmailChangeService {
         this.emails = emails;
         this.frontend = frontend;
         this.clock = clock;
+        this.identityEvents = identityEvents;
     }
 
     /** Re-authenticates (outside any transaction: Argon2 is slow), then records the request. */
@@ -158,6 +162,7 @@ public class EmailChangeService {
         user.changeEmail(EmailAddress.of(request.getNewEmail()));
         try {
             users.saveAndFlush(user);
+            identityEvents.identifierChanged(user);
         } catch (DataIntegrityViolationException takenAtTheSameMoment) {
             // Another account took the address in the same instant: the unique email constraint decides
             throw new InvalidEmailChangeLinkException();
@@ -193,6 +198,7 @@ public class EmailChangeService {
         user.changeEmail(EmailAddress.of(request.getOldEmail()));
         try {
             users.saveAndFlush(user);
+            identityEvents.identifierChanged(user);
         } catch (DataIntegrityViolationException takenAtTheSameMoment) {
             throw new InvalidEmailChangeLinkException();
         }
