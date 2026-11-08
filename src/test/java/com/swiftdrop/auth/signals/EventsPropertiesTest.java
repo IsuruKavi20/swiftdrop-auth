@@ -20,6 +20,14 @@ class EventsPropertiesTest {
     }
 
     @Test
+    void aReceiverWithoutPushUrlOnlyPolls() {
+        EventsProperties.Receiver pollOnly = new EventsProperties.Receiver("swiftdrop-backend", "swiftdrop-backend",
+                null);
+        assertThat(pollOnly.pushes()).isFalse();
+        assertThat(receiver("https://api.getswiftdrop.me/internal/identity-events").pushes()).isTrue();
+    }
+
+    @Test
     void refusesPlainHttpToAnyOtherHost() {
         assertThatThrownBy(() -> receiver("http://api.getswiftdrop.me/events"))
                 .isInstanceOf(IllegalArgumentException.class);

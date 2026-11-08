@@ -27,7 +27,8 @@ public record EventsProperties(Boolean pushEnabled, Duration pushInterval, List<
     /**
      * @param id       our name for the receiver (also its row in event_receivers)
      * @param audience the SET's "aud": what the receiver checks it is the intended recipient
-     * @param pushUrl  RFC 8935 endpoint that accepts application/secevent+jwt
+     * @param pushUrl  RFC 8935 endpoint that accepts application/secevent+jwt; empty = this receiver only polls
+     *                 (RFC 8936), e.g. while it can't be reached from here
      */
     public record Receiver(String id, String audience, URI pushUrl) {
 
@@ -41,8 +42,13 @@ public record EventsProperties(Boolean pushEnabled, Duration pushInterval, List<
             if (audience == null || audience.isBlank() || audience.length() > 100) {
                 throw new IllegalArgumentException("events receiver audience is required");
             }
-            if (pushUrl == null || !pushUrl.isAbsolute() || pushUrl.getHost() == null
-                    || pushUrl.getRawUserInfo() != null) {
+            if (pushUrl != null) {   // none = poll-only
+                checkPushUrl(pushUrl);
+            }
+        }
+
+        private static void checkPushUrl(URI pushUrl) {
+            if (!pushUrl.isAbsolute() || pushUrl.getHost() == null || pushUrl.getRawUserInfo() != null) {
                 throw new IllegalArgumentException("events receiver push-url must be an absolute URL without user info");
             }
             boolean https = "https".equals(pushUrl.getScheme());
@@ -50,6 +56,11 @@ public record EventsProperties(Boolean pushEnabled, Duration pushInterval, List<
             if (!https && !localHttp) {
                 throw new IllegalArgumentException("events receiver push-url must use https");
             }
+        }
+
+        /** false = poll-only: events wait until the receiver collects them. */
+        public boolean pushes() {
+            return pushUrl != null;
         }
     }
 }

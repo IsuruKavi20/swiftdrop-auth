@@ -99,6 +99,9 @@ public class EventDelivery {
     /** One round: queue new events, then send what is due. Safe to run on several pods at once. */
     public void deliverDue() {
         for (EventsProperties.Receiver receiver : settings.receivers()) {
+            if (!receiver.pushes()) {
+                continue;   // poll-only: its events are queued when it polls (EventPolling)
+            }
             try {
                 enqueueNew(receiver);
                 for (Claimed claimed : claimDue(receiver)) {

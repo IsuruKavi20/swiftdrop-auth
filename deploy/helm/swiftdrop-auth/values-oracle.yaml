@@ -20,7 +20,13 @@ bootstrapAdminEmail: isurukpremasiri2001@gmail.com
 # (/swiftdrop/dev/identity/client-secret); only the hash is here, in the Secret swiftdrop-auth-directory.
 directoryClients:
   - clientId: svc_swiftdrop-backend
-    permissions: [directory:read, directory:read-email]
+    permissions: [directory:read, directory:read-email, events:read]
+
+# SwiftDrop's backend gets identity events. Poll-only until SwiftDrop is online on AWS; then add:
+#   pushUrl: https://api.getswiftdrop.me/internal/identity-events
+eventReceivers:
+  - id: swiftdrop-backend
+    audience: swiftdrop-backend
 
 ingress:
   tls:

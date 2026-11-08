@@ -63,6 +63,8 @@ versions: [Semantic Versioning](https://semver.org/).
 - **Role application hardening** (identity step 7d): decisions lock before reading (no lost concurrent decision),
   the approver is re-checked in the database, withdraw locks, queue `count` 1–100 (default 50), nobody grants a role
   to themselves (`CANNOT_GRANT_OWN_ROLE`), control characters removed from notes/reasons, queue rate limit 60/min.
+- **Poll-only event receivers**: `push-url` is optional; a receiver without one is never pushed to and collects
+  its events by polling (RFC 8936). Helm `eventReceivers`; Oracle: `swiftdrop-backend` poll-only, `events:read`.
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.

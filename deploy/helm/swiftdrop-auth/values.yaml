@@ -37,6 +37,14 @@ directoryClients: []
 #    permissions: [directory:read, directory:read-email]
 directorySecretName: swiftdrop-auth-directory
 
+# Identity event receivers (identity step 6): who gets signed SETs. Nothing here is secret.
+# pushUrl (https) = we push each event (RFC 8935); leave it out = poll-only (RFC 8936): the receiver collects
+# events itself with its service client (permission events:read), e.g. while it can't be reached from here.
+eventReceivers: []
+#  - id: swiftdrop-backend
+#    audience: swiftdrop-backend
+#    pushUrl: https://api.getswiftdrop.me/internal/identity-events
+
 resources:
   requests: { cpu: 250m, memory: 640Mi }
   limits: { memory: 768Mi }

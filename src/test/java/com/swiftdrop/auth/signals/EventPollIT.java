@@ -48,10 +48,10 @@ class EventPollIT {
 
     @DynamicPropertySource
     static void receiver(DynamicPropertyRegistry registry) {
-        registry.add("swiftdrop.events.push-enabled", () -> "false");   // this receiver only polls
+        // A poll-only receiver: no push-url (it can't be reached, e.g. it runs on a laptop). Push stays switched on,
+        // and must simply skip it.
         registry.add("swiftdrop.events.receivers[0].id", () -> "swiftdrop-backend");
         registry.add("swiftdrop.events.receivers[0].audience", () -> "swiftdrop-backend");
-        registry.add("swiftdrop.events.receivers[0].push-url", () -> "http://localhost:9/never-used");
     }
 
     @Autowired
@@ -72,6 +72,9 @@ class EventPollIT {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private EventDelivery delivery;
+
     @BeforeEach
     void confirmEverythingLeftByOtherTests() throws Exception {
         drain();
@@ -87,6 +90,18 @@ class EventPollIT {
         SignedJWT set = SignedJWT.parse(sets.get(eventId.toString()));
         assertThat(set.getHeader().getType()).hasToString("secevent+jwt");
         assertThat(set.getJWTClaimsSet().getAudience()).containsExactly("swiftdrop-backend");
+    }
+
+    @Test
+    void aPollOnlyReceiverIsNeverPushedTo() throws Exception {
+        UUID event = newEvent();
+
+        delivery.deliverDue();
+
+        // No push was tried (a failed try counts an attempt); the event waits for the receiver's poll
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM identity.event_deliveries WHERE event_id = ?"
+                + " AND attempts > 0", Integer.class, event)).isZero();
+        assertThat(poll("{\"maxEvents\":10}")).containsKey(event.toString());
     }
 
     @Test
