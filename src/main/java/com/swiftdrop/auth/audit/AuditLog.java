@@ -15,6 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Map;
 import java.util.TreeMap;
 
 /**
@@ -49,6 +50,15 @@ public class AuditLog {
                         + " ip, request_id, details, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 seq, Timestamp.from(at), row.actorType(), row.actorId(), row.action(), row.targetType(),
                 row.targetId(), row.ip(), row.requestId(), details, prevHash, AuditChain.hash(prevHash, row));
+    }
+
+    /**
+     * For a read with no transaction of its own (e.g. a directory email read): records in a short new transaction.
+     * The row commits even if the caller fails afterwards: the data may already have left the service.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordAlone(AuditEntry entry) {
+        record(entry);
     }
 
     private String lastHash() {

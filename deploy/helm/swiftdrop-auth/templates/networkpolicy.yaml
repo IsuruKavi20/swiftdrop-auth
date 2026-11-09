@@ -21,8 +21,12 @@ metadata:
   name: {{ $name }}-app
   labels: {{- include "auth.labels" . | nindent 4 }}
 spec:
+  # The app, and a break-glass Job (deploy/oke/break-glass.ps1, lesson 31): the same image, so the same connections.
+  # The break-glass pod is not behind the Service, so Traefik never sends it requests.
   podSelector:
-    matchLabels: {{- include "auth.selector" (list . "app") | nindent 6 }}
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }} }
+    matchExpressions:
+      - { key: app.kubernetes.io/name, operator: In, values: ["app", "break-glass"] }
   policyTypes: ["Ingress", "Egress"]
   ingress:
     - from:
@@ -90,6 +94,8 @@ spec:
     - from:
         - podSelector:
             matchLabels: {{- include "auth.selector" (list $ "app") | nindent 14 }}
+        - podSelector:
+            matchLabels: {{- include "auth.selector" (list $ "break-glass") | nindent 14 }}
         {{- if and (eq $component "postgres") $.Values.backup.enabled }}
         # The nightly backup job (read-only role)
         - podSelector:

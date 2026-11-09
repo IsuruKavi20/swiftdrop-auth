@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.directory;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.common.error.ErrorCode;
 import com.swiftdrop.auth.common.privacy.ExportMap;
 import com.swiftdrop.auth.user.RoleName;
@@ -32,8 +35,11 @@ public class DirectoryService {
 
     private final UserDirectoryQueries queries;
 
-    DirectoryService(UserDirectoryQueries queries) {
+    private final AuditLog audit;
+
+    DirectoryService(UserDirectoryQueries queries, AuditLog audit) {
         this.queries = queries;
+        this.audit = audit;
     }
 
     public Map<String, Object> get(UUID id, boolean withEmail, String client) {
@@ -95,8 +101,10 @@ public class DirectoryService {
         return response;
     }
 
-    private static void logEmailRead(boolean withEmail, String client, int count) {
+    private void logEmailRead(boolean withEmail, String client, int count) {
         if (withEmail && count > 0) {
+            audit.recordAlone(new AuditEntry(Actor.service(client), "directory.email-read", null, null,
+                    Map.of("people", count)));
             log.info("Directory email read client={} people={}", client, count);
         }
     }

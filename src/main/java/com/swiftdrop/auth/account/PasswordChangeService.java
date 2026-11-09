@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.account;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.common.concurrency.Bulkhead;
 import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.login.Reauthentication;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -44,10 +48,12 @@ public class PasswordChangeService {
 
     private final IdentityEvents identityEvents;
 
+    private final AuditLog audit;
+
     PasswordChangeService(Reauthentication reauthentication, PasswordPolicy policy, PasswordEncoder encoder,
                           Bulkhead passwordWork, UserRepository users, SessionService sessions,
                           ApplicationEventPublisher events, TransactionTemplate transactions, SecurityEmails emails,
-                          Clock clock, IdentityEvents identityEvents) {
+                          Clock clock, IdentityEvents identityEvents, AuditLog audit) {
         this.reauthentication = reauthentication;
         this.policy = policy;
         this.encoder = encoder;
@@ -59,6 +65,7 @@ public class PasswordChangeService {
         this.emails = emails;
         this.clock = clock;
         this.identityEvents = identityEvents;
+        this.audit = audit;
     }
 
     /** Slow work (Argon2 twice, the breach check) runs before the short database transaction. */
@@ -80,6 +87,7 @@ public class PasswordChangeService {
             identityEvents.passwordChanged(userId);
             sessions.endAllSessions(userId, RevokeReason.PASSWORD_CHANGED);
             events.publishEvent(new PasswordChanged(userId));
+            audit.record(AuditEntry.onUser(Actor.user(userId), "password.changed", userId, Map.of()));
             log.info("Password changed, all sessions ended user={}", userId);
             return sessions.start(locked);
         });

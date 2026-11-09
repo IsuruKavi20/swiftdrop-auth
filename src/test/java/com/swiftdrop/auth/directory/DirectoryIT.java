@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -107,6 +108,10 @@ class DirectoryIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").exists())
                 .andExpect(jsonPath("$.email_verified").value(true));
+
+        // Identity step 9a: every email read is audited (which client, how many people; never the addresses)
+        assertThat(jdbc.queryForObject("SELECT details FROM identity.audit_log WHERE action = 'directory.email-read'"
+                + " AND actor_id = ? ORDER BY seq DESC LIMIT 1", String.class, MAILER)).isEqualTo("{\"people\":1}");
     }
 
     @Test

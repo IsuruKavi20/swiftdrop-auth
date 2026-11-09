@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.account;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
 import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.common.web.FrontendRegistry;
@@ -22,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -53,10 +57,12 @@ public class EmailChangeService {
 
     private final IdentityEvents identityEvents;
 
+    private final AuditLog audit;
+
     EmailChangeService(Reauthentication reauthentication, SessionService sessions, UserRepository users,
                        EmailChangeRequestRepository requests, ApplicationEventPublisher events,
                        TransactionTemplate transactions, SecurityEmails emails, FrontendRegistry frontends,
-                       RequestFrontend requestFrontend, Clock clock, IdentityEvents identityEvents) {
+                       RequestFrontend requestFrontend, Clock clock, IdentityEvents identityEvents, AuditLog audit) {
         this.reauthentication = reauthentication;
         this.sessions = sessions;
         this.users = users;
@@ -68,6 +74,7 @@ public class EmailChangeService {
         this.requestFrontend = requestFrontend;
         this.clock = clock;
         this.identityEvents = identityEvents;
+        this.audit = audit;
     }
 
     /** Re-authenticates (outside any transaction: Argon2 is slow), then records the request. */
@@ -94,6 +101,8 @@ public class EmailChangeService {
                 new EmailChangeRequest(userId, user.getEmail(), newEmail.value(), now, now.plus(CONFIRM_TTL)));
         // Outbox: stored in this transaction, sent after commit, retried on failure
         events.publishEvent(new EmailChangeRequested(request.getId(), requestFrontend.currentId()));
+        audit.record(AuditEntry.onUser(Actor.user(userId), "email-change.requested", userId,
+                Map.of("request", request.getId().toString())));
         log.info("Email change requested user={} request={}", userId, request.getId());
     }
 
@@ -171,6 +180,8 @@ public class EmailChangeService {
             throw new InvalidEmailChangeLinkException();
         }
         events.publishEvent(new EmailChangeConfirmed(request.getId(), requestFrontend.currentId()));
+        audit.record(AuditEntry.onUser(Actor.user(user.getId()), "email-change.confirmed", user.getId(),
+                Map.of("request", request.getId().toString())));
         log.info("Email changed user={} request={}", user.getId(), request.getId());
     }
 
@@ -208,6 +219,8 @@ public class EmailChangeService {
         // Last: cancelOpen clears the persistence context, so nothing below may use the entities read above
         requests.cancelOpen(user.getId(), now);
         sessions.endAllSessions(user.getId(), RevokeReason.EMAIL_CHANGE_UNDONE);
+        audit.record(AuditEntry.onUser(Actor.user(user.getId()), "email-change.undone", user.getId(),
+                Map.of("request", request.getId().toString())));
         log.warn("Email change undone by the old address, all sessions ended user={} request={}",
                 user.getId(), request.getId());
     }

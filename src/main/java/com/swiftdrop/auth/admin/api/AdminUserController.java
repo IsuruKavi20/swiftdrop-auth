@@ -1,6 +1,13 @@
 package com.swiftdrop.auth.admin.api;
 
+import com.swiftdrop.auth.admin.AdminUsers;
+import com.swiftdrop.auth.audit.Actor;
 import com.swiftdrop.auth.admin.RoleAdministration;
+import com.swiftdrop.auth.admin.api.dto.ReasonBody;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import com.swiftdrop.auth.admin.api.dto.AdminUserResponse;
 import com.swiftdrop.auth.common.web.ApiPaths;
 import com.swiftdrop.auth.security.RequirePermission;
@@ -27,9 +34,48 @@ import java.util.UUID;
 public class AdminUserController {
 
     private final RoleAdministration administration;
+    private final AdminUsers adminUsers;
 
-    public AdminUserController(RoleAdministration administration) {
+    public AdminUserController(RoleAdministration administration, AdminUsers adminUsers) {
         this.administration = administration;
+        this.adminUsers = adminUsers;
+    }
+
+    /** Identity step 9b: one person, by id (search stays exact-email only: no browsing everyone). */
+    @GetMapping("/{userId}")
+    @RequirePermission("user:read")
+    public AdminUsers.UserDetail detail(@PathVariable UUID userId) {
+        return adminUsers.detail(userId);
+    }
+
+    @PostMapping("/{userId}/block")
+    @RequirePermission("user:manage-status")
+    public AdminUsers.UserDetail block(@AuthenticationPrincipal Jwt caller, @PathVariable UUID userId,
+                                       @Valid @RequestBody ReasonBody body) {
+        return adminUsers.block(Actor.user(callerId(caller)), userId, body.reason());
+    }
+
+    @PostMapping("/{userId}/unblock")
+    @RequirePermission("user:manage-status")
+    public AdminUsers.UserDetail unblock(@AuthenticationPrincipal Jwt caller, @PathVariable UUID userId,
+                                         @Valid @RequestBody ReasonBody body) {
+        return adminUsers.unblock(Actor.user(callerId(caller)), userId, body.reason());
+    }
+
+    @PostMapping("/{userId}/sessions/end")
+    @RequirePermission("user:manage-status")
+    public AdminUsers.UserDetail endSessions(@AuthenticationPrincipal Jwt caller, @PathVariable UUID userId,
+                                             @Valid @RequestBody ReasonBody body) {
+        return adminUsers.endSessions(Actor.user(callerId(caller)), userId, body.reason());
+    }
+
+    /** The step 8 erasure: tombstone now, hard delete once every receiver confirmed (30 days at most). */
+    @DeleteMapping("/{userId}")
+    @RequirePermission("user:delete")
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt caller, @PathVariable UUID userId,
+                                       @Valid @RequestBody ReasonBody body) {
+        adminUsers.delete(Actor.user(callerId(caller)), userId, body.reason());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

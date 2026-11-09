@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.admin;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.common.error.DomainException;
 import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.common.error.ErrorCode;
@@ -17,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -34,12 +38,15 @@ public class RoleAdministration {
 
     private final IdentityEvents identityEvents;
 
+    private final AuditLog audit;
+
     public RoleAdministration(UserRepository users, RoleRepository roles, SessionService sessions,
-                              IdentityEvents identityEvents) {
+                              IdentityEvents identityEvents, AuditLog audit) {
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;
         this.identityEvents = identityEvents;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -52,11 +59,23 @@ public class RoleAdministration {
     /** Idempotent: granting a role the user already has changes nothing. */
     @Transactional
     public UserView grant(UUID actorId, UUID userId, RoleName role) {
+        return grant(Actor.user(actorId), userId, role);
+    }
+
+    /** Idempotent: granting a role the user already has changes nothing. */
+    @Transactional
+    public UserView grant(Actor actor, UUID userId, RoleName role) {
+        return grant(actor, userId, role, null);
+    }
+
+    /** @param reason optional (the break-glass tool always sends one); stored in the audit row */
+    @Transactional
+    public UserView grant(Actor actor, UUID userId, RoleName role, String reason) {
         if (role == RoleName.MERCHANT) {
             // Merchants are approved through their own flow (Step 13), never by a bare role grant
             throw new AdminException(ErrorCode.ROLE_NOT_ASSIGNABLE);
         }
-        if (actorId.equals(userId)) {
+        if (actor.is(userId)) {
             // Four-eyes: nobody gives roles to themselves (the same rule as role applications)
             throw new AdminException(ErrorCode.CANNOT_GRANT_OWN_ROLE);
         }
@@ -72,7 +91,8 @@ public class RoleAdministration {
         if (!user.hasRole(role)) {
             user.addRole(roles.findByName(role).orElseThrow());
             identityEvents.rolesChanged(user);
-            log.info("Role granted: role={} user={} by={}", role, userId, actorId);
+            audit.record(AuditEntry.onUser(actor, "role.granted", userId, details(role, reason)));
+            log.info("Role granted: role={} user={} by={}", role, userId, actor.id());
         }
         return UserView.of(user);
     }
@@ -80,11 +100,23 @@ public class RoleAdministration {
     /** Idempotent: revoking a role the user does not have changes nothing. */
     @Transactional
     public UserView revoke(UUID actorId, UUID userId, RoleName role) {
+        return revoke(Actor.user(actorId), userId, role);
+    }
+
+    /** Idempotent: revoking a role the user does not have changes nothing. */
+    @Transactional
+    public UserView revoke(Actor actor, UUID userId, RoleName role) {
+        return revoke(actor, userId, role, null);
+    }
+
+    /** @param reason optional (the break-glass tool always sends one); stored in the audit row */
+    @Transactional
+    public UserView revoke(Actor actor, UUID userId, RoleName role, String reason) {
         if (role == RoleName.MERCHANT) {
             // Merchants are suspended through merchant administration, which also stops their API clients
             throw new AdminException(ErrorCode.ROLE_NOT_ASSIGNABLE);
         }
-        if (role == RoleName.ADMIN && actorId.equals(userId)) {
+        if (role == RoleName.ADMIN && actor.is(userId)) {
             // Prevents an admin from locking everyone (including themselves) out by accident
             throw new AdminException(ErrorCode.CANNOT_REMOVE_OWN_ADMIN);
         }
@@ -105,8 +137,14 @@ public class RoleAdministration {
         user.removeRole(role);
         identityEvents.rolesChanged(user);
         sessions.endAllSessions(userId, RevokeReason.ROLE_CHANGED);
-        log.info("Role revoked: role={} user={} by={}", role, userId, actorId);
+        audit.record(AuditEntry.onUser(actor, "role.revoked", userId, details(role, reason)));
+        log.info("Role revoked: role={} user={} by={}", role, userId, actor.id());
         return UserView.of(user);
+    }
+
+    private static Map<String, Object> details(RoleName role, String reason) {
+        return reason == null ? Map.of("role", role.name())
+                : Map.of("role", role.name(), "reason", AdminUsers.checkReason(reason));
     }
 
     // Locks the user row first (same lock order as login and refresh), then loads roles

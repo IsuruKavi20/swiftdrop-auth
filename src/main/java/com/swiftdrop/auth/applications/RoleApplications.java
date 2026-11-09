@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.applications;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.common.error.ErrorCode;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.IdentityEvents;
@@ -46,9 +49,11 @@ public class RoleApplications {
     private final ApplicationEmails emails;
     private final Clock clock;
 
+    private final AuditLog audit;
+
     RoleApplications(RoleApplicationRepository applications, UserRepository users, RoleRepository roles,
                      IdentityEvents identityEvents, ApplicationEventPublisher events, ApplicationEmails emails,
-                     Clock clock) {
+                     Clock clock, AuditLog audit) {
         this.applications = applications;
         this.users = users;
         this.roles = roles;
@@ -56,6 +61,7 @@ public class RoleApplications {
         this.events = events;
         this.emails = emails;
         this.clock = clock;
+        this.audit = audit;
     }
 
     /** @param role COURIER or DISPATCHER (the API only accepts those two) */
@@ -103,6 +109,8 @@ public class RoleApplications {
             throw new RoleApplicationException(ErrorCode.ROLE_APPLICATION_CLOSED);
         }
         application.withdraw(clock.instant());
+        audit.record(AuditEntry.onUser(Actor.user(userId), "role-application.withdrawn", userId,
+                Map.of("application", applicationId.toString(), "role", application.getRole().name())));
         log.info("Role application withdrawn: application={} user={}", applicationId, userId);
     }
 
@@ -164,6 +172,9 @@ public class RoleApplications {
         }
         // Outbox: stored in this transaction, emailed after commit (never for a decision that rolled back)
         events.publishEvent(new RoleApplicationDecided(applicationId));
+        audit.record(AuditEntry.onUser(Actor.user(approverId), "role-application.decided", applicantId,
+                Map.of("application", applicationId.toString(), "role", application.getRole().name(),
+                        "decision", decision.name())));
         log.info("Role application decided: application={} role={} decision={} by={}", applicationId,
                 application.getRole(), decision, approverId);
         return RoleApplicationView.of(application);

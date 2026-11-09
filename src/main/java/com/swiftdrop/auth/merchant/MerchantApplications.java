@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.merchant;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.common.error.ErrorCode;
 import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.session.RevokeReason;
@@ -17,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,14 +44,17 @@ public class MerchantApplications {
 
     private final IdentityEvents identityEvents;
 
+    private final AuditLog audit;
+
     MerchantApplications(MerchantRepository merchants, UserRepository users, RoleRepository roles,
-                         SessionService sessions, Clock clock, IdentityEvents identityEvents) {
+                         SessionService sessions, Clock clock, IdentityEvents identityEvents, AuditLog audit) {
         this.merchants = merchants;
         this.users = users;
         this.roles = roles;
         this.sessions = sessions;
         this.clock = clock;
         this.identityEvents = identityEvents;
+        this.audit = audit;
     }
 
     /** The business details we need to decide; nothing more (the merchant service keeps the shop profile). */
@@ -131,9 +138,13 @@ public class MerchantApplications {
                 owner.addRole(roles.findByName(RoleName.MERCHANT).orElseThrow());
                 identityEvents.rolesChanged(owner);
             }
+            audit.record(AuditEntry.onUser(Actor.user(adminId), "merchant.decided", ownerId,
+                    Map.of("merchant", merchantId.toString(), "decision", decision.name())));
             log.info("Merchant approved: merchant={} by={}", merchantId, adminId);
         } else {
             merchant.reject(adminId, reason, now);
+            audit.record(AuditEntry.onUser(Actor.user(adminId), "merchant.decided", ownerId,
+                    Map.of("merchant", merchantId.toString(), "decision", decision.name(), "reason", reason.name())));
             log.info("Merchant rejected: merchant={} reason={} by={}", merchantId, reason, adminId);
         }
         return MerchantView.of(merchant);
@@ -170,6 +181,8 @@ public class MerchantApplications {
         } else {
             throw new MerchantException(ErrorCode.MERCHANT_INVALID_STATE);
         }
+        audit.record(AuditEntry.onUser(Actor.user(adminId), "merchant.status-changed", ownerId,
+                Map.of("merchant", merchantId.toString(), "change", change.name())));
         return MerchantView.of(merchant);
     }
 }
