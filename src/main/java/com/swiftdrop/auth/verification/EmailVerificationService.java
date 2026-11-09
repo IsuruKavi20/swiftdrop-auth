@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.verification;
 
-import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.common.web.FrontendRegistry;
+import com.swiftdrop.auth.common.web.RequestFrontend;
 import com.swiftdrop.auth.user.IdentityEvents;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.InvalidEmailException;
@@ -33,7 +34,8 @@ public class EmailVerificationService {
     private final AccountEmailSender sender;
     private final ApplicationEventPublisher events;
     private final VerificationProperties settings;
-    private final FrontendProperties frontend;
+    private final FrontendRegistry frontends;
+    private final RequestFrontend requestFrontend;
     private final Clock clock;
     private final TransactionOperations transactions;
 
@@ -41,13 +43,15 @@ public class EmailVerificationService {
 
     public EmailVerificationService(UserRepository users, VerificationTokenRepository tokens, AccountEmailSender sender,
                                     ApplicationEventPublisher events, VerificationProperties settings,
-                                    FrontendProperties frontend, Clock clock, TransactionOperations transactions, IdentityEvents identityEvents) {
+                                    FrontendRegistry frontends, RequestFrontend requestFrontend, Clock clock,
+                                    TransactionOperations transactions, IdentityEvents identityEvents) {
         this.users = users;
         this.tokens = tokens;
         this.sender = sender;
         this.events = events;
         this.settings = settings;
-        this.frontend = frontend;
+        this.frontends = frontends;
+        this.requestFrontend = requestFrontend;
         this.clock = clock;
         this.transactions = transactions;
         this.identityEvents = identityEvents;
@@ -58,14 +62,14 @@ public class EmailVerificationService {
      * simply issues a newer token). The token is committed BEFORE the mail leaves, so the link can never reach the
      * inbox before the server knows it.
      */
-    public void issueVerification(UUID userId) {
-        PendingMail mail = transactions.execute(status -> saveVerificationToken(userId));
+    public void issueVerification(UUID userId, String frontendId) {
+        PendingMail mail = transactions.execute(status -> saveVerificationToken(userId, frontendId));
         if (mail != null) {
             sender.sendVerification(mail.to(), mail.link());
         }
     }
 
-    private PendingMail saveVerificationToken(UUID userId) {
+    private PendingMail saveVerificationToken(UUID userId, String frontendId) {
         User user = users.findById(userId).orElse(null);
         if (user == null || user.isEmailVerified()) {
             return null;
@@ -81,23 +85,23 @@ public class EmailVerificationService {
         tokens.save(new VerificationToken(userId, VerificationTokens.hash(token), now, now.plus(settings.tokenTtl())));
         // The token goes in the URL fragment (#): browsers never send it to servers or in Referer headers,
         // and email scanners that pre-fetch links can't use it. The frontend page POSTs it on the user's click.
-        return new PendingMail(EmailAddress.of(user.getEmail()), frontend.link(VERIFY_PATH + "#token=" + token));
+        return new PendingMail(EmailAddress.of(user.getEmail()), frontends.link(frontendId, VERIFY_PATH + "#token=" + token));
     }
 
     private record PendingMail(EmailAddress to, URI link) {
     }
 
     /** Someone signed up with an existing email: verified owner gets a heads-up, unverified gets a fresh link. */
-    public void handleSignupAttemptOnExistingAccount(UUID userId) {
+    public void handleSignupAttemptOnExistingAccount(UUID userId, String frontendId) {
         User user = users.findById(userId).orElse(null);
         if (user == null) {
             return;
         }
         if (!user.isEmailVerified()) {
-            issueVerification(userId);
+            issueVerification(userId, frontendId);
             return;
         }
-        sender.sendAlreadyRegistered(EmailAddress.of(user.getEmail()), frontend.link(LOGIN_PATH));
+        sender.sendAlreadyRegistered(EmailAddress.of(user.getEmail()), frontends.link(frontendId, LOGIN_PATH));
     }
 
     @Transactional
@@ -132,7 +136,8 @@ public class EmailVerificationService {
         }
         users.findByEmail(email.value())
                 .filter(user -> !user.isEmailVerified())
-                .ifPresent(user -> events.publishEvent(new VerificationEmailRequested(user.getId())));
+                .ifPresent(user -> events.publishEvent(new VerificationEmailRequested(user.getId(),
+                        requestFrontend.currentId())));
     }
 
     // Stops anyone from flooding a victim's inbox through resend or repeated signups (and absorbs

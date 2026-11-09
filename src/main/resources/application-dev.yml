@@ -25,12 +25,10 @@ swiftdrop:
     private-key-location: .secrets/jwt-signing-key.pem
     create-key-if-missing: true
   # Email links point here. Configured, never taken from the request's Host header.
-  frontend:
-    # The team's React app (Vite dev server)
-    base-url: http://localhost:5173
-  # Their React app (5173) and any local frontend on 3000 may call us from the browser
-  cors:
-    allowed-origins: http://localhost:5173, http://localhost:3000
+  # The registered frontends (email links, Google login, CORS): the team's React app (Vite) and any local app on 3000
+  frontends:
+    - {id: local, base-url: http://localhost:5173, primary: true}
+    - {id: local-3000, base-url: http://localhost:3000}
   # Identity events to a SwiftDrop backend running on this laptop too (identity step 6). Leave push-url out for
   # poll-only. The backend polls with svc_swiftdrop-backend (events:read) from swiftdrop.directory.clients.
   # events:

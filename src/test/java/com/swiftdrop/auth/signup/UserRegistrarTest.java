@@ -54,7 +54,10 @@ class UserRegistrarTest {
 
     @BeforeEach
     void setUp() {
-        registrar = new UserRegistrar(userRepository, roleRepository, events, Clock.fixed(NOW, ZoneOffset.UTC));
+        registrar = new UserRegistrar(userRepository, roleRepository, events, Clock.fixed(NOW, ZoneOffset.UTC),
+                new com.swiftdrop.auth.common.web.RequestFrontend(new com.swiftdrop.auth.common.web.FrontendRegistry(
+                        java.util.List.of(new com.swiftdrop.auth.common.web.FrontendRegistry.Frontend("local",
+                                java.net.URI.create("http://localhost:5173"), true)))));
     }
 
     @Test

@@ -49,6 +49,18 @@ class CorsIT {
     }
 
     @Test
+    void corsAllowsExactlyTheRegisteredOrigins() throws Exception {
+        // The online app is registered too; a look-alike host is not
+        mockMvc.perform(options("/api/v1/auth/login").header("Origin", "https://app.getswiftdrop.me")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "https://app.getswiftdrop.me"));
+        mockMvc.perform(options("/api/v1/auth/login").header("Origin", "https://app.getswiftdrop.me.evil.com")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void protectedCallsMaySendTheBearerHeader() throws Exception {
         mockMvc.perform(options("/api/v1/auth/me")
                         .header("Origin", FRONTEND)

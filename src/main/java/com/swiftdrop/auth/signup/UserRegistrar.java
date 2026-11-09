@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.signup;
 
+import com.swiftdrop.auth.common.web.RequestFrontend;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.IdentityProfile;
 import com.swiftdrop.auth.user.PersonName;
@@ -29,13 +30,15 @@ class UserRegistrar {
     private final RoleRepository roleRepository;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final RequestFrontend requestFrontend;
 
     UserRegistrar(UserRepository userRepository, RoleRepository roleRepository, ApplicationEventPublisher events,
-                  Clock clock) {
+                  Clock clock, RequestFrontend requestFrontend) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.events = events;
         this.clock = clock;
+        this.requestFrontend = requestFrontend;
     }
 
     /** @throws DuplicateEmailException if the address is already registered (also under a concurrent race) */
@@ -54,7 +57,7 @@ class UserRegistrar {
         try {
             User saved = userRepository.saveAndFlush(user);
             // Stored in the outbox in THIS transaction: the verification email can't be lost
-            events.publishEvent(new AccountRegistered(saved.getId()));
+            events.publishEvent(new AccountRegistered(saved.getId(), requestFrontend.currentId()));
         } catch (DataIntegrityViolationException e) {
             // The existsByEmail check can race with a concurrent signup; the unique constraint is the real guard
             if (e.getCause() instanceof ConstraintViolationException violation
@@ -69,6 +72,7 @@ class UserRegistrar {
     @Transactional
     public void notifyExistingAccount(EmailAddress email) {
         userRepository.findByEmail(email.value())
-                .ifPresent(existing -> events.publishEvent(new SignupAttemptOnExistingAccount(existing.getId())));
+                .ifPresent(existing -> events.publishEvent(new SignupAttemptOnExistingAccount(existing.getId(),
+                        requestFrontend.currentId())));
     }
 }

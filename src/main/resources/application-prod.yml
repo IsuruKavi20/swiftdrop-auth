@@ -59,9 +59,7 @@ logging:
     org.springframework.security: WARN
 
 swiftdrop:
-  # Where email links and the Google login send users (the real frontend, https). Missing -> no startup.
-  frontend:
-    base-url: ${SWIFTDROP_FRONTEND_BASE_URL}
+  # Frontends come from SWIFTDROP_FRONTENDS_0_ID / _BASEURL / _PRIMARY ... (Helm `frontends`). None -> no startup.
   jwt:
     issuer: ${SWIFTDROP_JWT_ISSUER}
     # Mounted secret file with the RSA private key (PKCS#8 PEM, >= 2048 bits). Missing -> no startup.

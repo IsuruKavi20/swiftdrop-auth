@@ -7,8 +7,8 @@ image:
 
 publicHost: auth.127.0.0.1.nip.io
 publicPort: "8443"
-frontendBaseUrl: http://localhost:5173
-corsAllowedOrigins: http://localhost:5173
+frontends:
+  - { id: local, baseUrl: http://localhost:5173, primary: true }
 # kind's pod network: the Traefik pods live here
 trustedProxies: '10\.244\.\d{1,3}\.\d{1,3}'
 

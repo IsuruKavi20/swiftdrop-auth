@@ -148,9 +148,9 @@ swiftdrop:
     # Key rotation overlap (see docs/integration): earlier public keys still accepted and published, e.g.
     # previous-keys: [{key-id: auth-2026-09, public-key-location: /run/secrets/jwt-2026-09.pub.pem}]
     previous-keys: []
-  # Browser access (CORS): exact frontend origins, comma-separated in the env var. Empty = none (fail closed).
-  cors:
-    allowed-origins: ${SWIFTDROP_CORS_ALLOWED_ORIGINS:}
+  # Registered frontends (identity: plan/STEP-FRONTENDS.md): the ONLY places users are sent to (email links, Google
+  # login) and the ONLY browser origins allowed (CORS). Set per environment (profile yml or Helm `frontends`), e.g.
+  # frontends: [{id: web, base-url: https://app.getswiftdrop.me, primary: true}]
   # Per-IP limits on the public endpoints (deep dive 26). 429 + Retry-After when a bucket is empty.
   rate-limit:
     enabled: true

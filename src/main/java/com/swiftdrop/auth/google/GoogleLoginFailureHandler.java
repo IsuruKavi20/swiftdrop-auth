@@ -1,6 +1,6 @@
 package com.swiftdrop.auth.google;
 
-import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.common.web.FrontendRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -20,15 +20,16 @@ public class GoogleLoginFailureHandler implements AuthenticationFailureHandler {
     private static final int MAX_DETAIL_LENGTH = 200;
     private static final Logger log = LoggerFactory.getLogger(GoogleLoginFailureHandler.class);
 
-    private final FrontendProperties frontend;
+    private final FrontendRegistry frontends;
 
-    GoogleLoginFailureHandler(FrontendProperties frontend) {
-        this.frontend = frontend;
+    GoogleLoginFailureHandler(FrontendRegistry frontends) {
+        this.frontends = frontends;
     }
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception) throws IOException {
+        String frontendId = GoogleLoginSuccessHandler.startedFrom(request);
         GoogleLoginSuccessHandler.endLoginSession(request);
         // The OAuth error code and Google's fixed technical description (e.g. "Missing parameter: code_verifier")
         // carry no personal data; the description is shortened and stripped of line breaks (no log injection)
@@ -39,7 +40,8 @@ public class GoogleLoginFailureHandler implements AuthenticationFailureHandler {
             detail = safeForLog(oauth.getError().getDescription());
         }
         log.warn("Google login failed: reason={} detail={}", reason, detail);
-        response.sendRedirect(frontend.link(GoogleLoginSuccessHandler.CALLBACK_PATH + "#" + ERROR_FRAGMENT).toString());
+        response.sendRedirect(frontends.link(frontendId, GoogleLoginSuccessHandler.CALLBACK_PATH + "#" + ERROR_FRAGMENT)
+                .toString());
     }
 
     private static String safeForLog(String text) {

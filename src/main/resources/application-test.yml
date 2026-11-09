@@ -12,10 +12,10 @@ swiftdrop:
     issuer: http://localhost
     # A fresh in-memory key per test run
     ephemeral-key: true
-  frontend:
-    base-url: http://localhost:3000
-  cors:
-    allowed-origins: http://localhost:5173
+  frontends:
+    - {id: local, base-url: http://localhost:3000, primary: true}
+    - {id: vite, base-url: http://localhost:5173}
+    - {id: web, base-url: https://app.getswiftdrop.me}
   # A dummy Google client: switches the Google login chain on; Google itself is never called in tests
   google:
     client-id: test-client.apps.googleusercontent.com

@@ -1713,51 +1713,51 @@
           "boolean" : {
             "type" : "boolean"
           },
-          "long" : {
-            "type" : "boolean"
+          "textual" : {
+            "type" : "boolean",
+            "deprecated" : true
           },
-          "binary" : {
+          "string" : {
             "type" : "boolean"
           },
           "double" : {
             "type" : "boolean"
           },
-          "string" : {
+          "long" : {
             "type" : "boolean"
           },
           "pojo" : {
             "type" : "boolean"
           },
-          "textual" : {
-            "type" : "boolean",
-            "deprecated" : true
+          "binary" : {
+            "type" : "boolean"
+          },
+          "int" : {
+            "type" : "boolean"
           },
           "short" : {
             "type" : "boolean"
           },
-          "int" : {
+          "bigInteger" : {
+            "type" : "boolean"
+          },
+          "valueNode" : {
             "type" : "boolean"
           },
           "nodeType" : {
             "type" : "string",
             "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
           },
-          "bigInteger" : {
-            "type" : "boolean"
-          },
-          "missingNode" : {
-            "type" : "boolean"
-          },
           "integralNumber" : {
-            "type" : "boolean"
-          },
-          "floatingPointNumber" : {
             "type" : "boolean"
           },
           "bigDecimal" : {
             "type" : "boolean"
           },
-          "valueNode" : {
+          "missingNode" : {
+            "type" : "boolean"
+          },
+          "floatingPointNumber" : {
             "type" : "boolean"
           },
           "embeddedValue" : {

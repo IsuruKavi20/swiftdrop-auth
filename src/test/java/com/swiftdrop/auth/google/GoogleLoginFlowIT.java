@@ -91,6 +91,45 @@ class GoogleLoginFlowIT {
     }
 
     @Test
+    void googleLoginReturnsToTheAppItStartedFrom() throws Exception {
+        MvcResult start = mockMvc.perform(get("/oauth2/authorization/google").param("code_challenge", CHALLENGE)
+                        .param("frontend", "web"))
+                .andExpect(status().is3xxRedirection()).andReturn();
+        assertThat(loginSessionAttribute(start, GoogleLoginSuccessHandler.FRONTEND_ATTRIBUTE)).isEqualTo("web");
+
+        MockHttpServletRequest back = loginRequest();
+        back.getSession().setAttribute(GoogleLoginSuccessHandler.FRONTEND_ATTRIBUTE, "web");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        successHandler.onAuthenticationSuccess(back, response, googleLogin(uniqueSub(), true));
+
+        assertThat(response.getRedirectedUrl()).startsWith("https://app.getswiftdrop.me/auth/callback#code=");
+    }
+
+    @Test
+    void anUnknownFrontendIsNeverUsedAsAnAddress() throws Exception {
+        MvcResult start = mockMvc.perform(get("/oauth2/authorization/google").param("code_challenge", CHALLENGE)
+                        .param("frontend", "https://evil.example"))
+                .andExpect(status().is3xxRedirection()).andReturn();
+        assertThat(loginSessionAttribute(start, GoogleLoginSuccessHandler.FRONTEND_ATTRIBUTE)).isNull();
+        assertThat(loginSessionAttribute(start, GoogleLoginSuccessHandler.CHALLENGE_ATTRIBUTE)).isEqualTo(CHALLENGE);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        successHandler.onAuthenticationSuccess(loginRequest(), response, googleLogin(uniqueSub(), true));
+        assertThat(response.getRedirectedUrl()).startsWith("http://localhost:3000/auth/callback#");
+    }
+
+    @Test
+    void aFailedLoginAlsoReturnsToTheAppItStartedFrom() throws Exception {
+        MockHttpServletRequest back = new MockHttpServletRequest();
+        back.getSession().setAttribute(GoogleLoginSuccessHandler.FRONTEND_ATTRIBUTE, "web");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        failureHandler.onAuthenticationFailure(back, response, new BadCredentialsException("access_denied"));
+
+        assertThat(response.getRedirectedUrl()).isEqualTo("https://app.getswiftdrop.me/auth/callback#error=login_failed");
+    }
+
+    @Test
     void successRedirectsToTheFrontendWithAOneTimeCodeInTheFragmentNeverTokens() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -101,7 +140,9 @@ class GoogleLoginFlowIT {
                 .isEqualTo("http://localhost:3000/auth/callback");
         assertThat(redirect.getQuery()).isNull();                     // nothing in ?query (logs, Referer)
         assertThat(redirect.getFragment()).matches("^code=[A-Za-z0-9_-]{43}$");
-        assertThat(response.getRedirectedUrl()).doesNotContain("access_token", "eyJ");
+        // Only the 43-character code above: a JWT (three dot-separated parts) can't fit. Not "contains eyJ": a random
+        // code contains those 3 letters by chance about once in 6,000 runs (a flaky test, seen once)
+        assertThat(redirect.getFragment()).doesNotContain(".", "access_token", "token=");
     }
 
     @Test
@@ -263,6 +304,16 @@ class GoogleLoginFlowIT {
         return mockMvc.perform(post(EXCHANGE).contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer stale.or.garbage")
                 .content("{\"code\":\"" + code + "\",\"verifier\":\"" + verifier + "\"}"));
+    }
+
+    // The login session lives in Redis (Spring Session): read it back the way any instance would
+    private Object loginSessionAttribute(MvcResult start, String attribute) {
+        String cookie = start.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(header -> header.startsWith("SWIFTDROP_LOGIN=")).findFirst().orElseThrow();
+        String sessionId = new String(java.util.Base64.getDecoder().decode(
+                cookie.substring("SWIFTDROP_LOGIN=".length(), cookie.indexOf(';'))),
+                java.nio.charset.StandardCharsets.UTF_8);
+        return sessions.findById(sessionId).getAttribute(attribute);
     }
 
     private String codeForNewGoogleUser() {

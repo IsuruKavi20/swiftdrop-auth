@@ -65,6 +65,10 @@ versions: [Semantic Versioning](https://semver.org/).
   to themselves (`CANNOT_GRANT_OWN_ROLE`), control characters removed from notes/reasons, queue rate limit 60/min.
 - **Poll-only event receivers**: `push-url` is optional; a receiver without one is never pushed to and collects
   its events by polling (RFC 8936). Helm `eventReceivers`; Oracle: `swiftdrop-backend` poll-only, `events:read`.
+- **Registered frontends**: `swiftdrop.frontends` (id, base-url, primary) replaces `swiftdrop.frontend.base-url` and
+  `swiftdrop.cors.allowed-origins`. Google login accepts `?frontend=<id>`; email links follow the request's Origin
+  (exact match); unknown → primary; CORS = the same list. Helm `frontends` replaces `frontendBaseUrl` and
+  `corsAllowedOrigins` (**breaking config change**).
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.

@@ -25,8 +25,8 @@ docker run -d --name auth-local -p "${Port}:9000" `
     -e SWIFTDROP_JWT_ISSUER=https://auth.swiftdrop.test `
     -e SWIFTDROP_JWT_PRIVATE_KEY_LOCATION=/run/secrets/jwt-signing-key.pem `
     -e SWIFTDROP_PUBLIC_BASE_URL=https://auth.swiftdrop.test `
-    -e SWIFTDROP_FRONTEND_BASE_URL=https://app.swiftdrop.test `
-    -e SWIFTDROP_CORS_ALLOWED_ORIGINS=https://app.swiftdrop.test `
+    -e SWIFTDROP_FRONTENDS_0_ID=web -e SWIFTDROP_FRONTENDS_0_BASEURL=https://app.swiftdrop.test `
+    -e SWIFTDROP_FRONTENDS_0_PRIMARY=true `
     -e "SWIFTDROP_TRUSTED_PROXIES=10\.\d{1,3}\.\d{1,3}\.\d{1,3}" `
     -e MAIL_HOST=host.docker.internal -e MAIL_PORT=1025 -e MAIL_USERNAME=test -e MAIL_PASSWORD=test `
     -v "${key}:/run/secrets/jwt-signing-key.pem:ro" `
