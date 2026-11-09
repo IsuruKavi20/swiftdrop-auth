@@ -57,6 +57,7 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "Access denied", "You do not have permission to perform this action."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found", "The requested resource does not exist."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found", "No user exists with this identifier."),
+    ERASURE_NOT_FOUND(HttpStatus.NOT_FOUND, "No erasure", "No deleted account exists with this identifier."),
     ROLE_NOT_ASSIGNABLE(HttpStatus.BAD_REQUEST, "Role not assignable",
             "This role cannot be granted here. Merchant access is given through merchant approval."),
     CANNOT_REMOVE_OWN_ADMIN(HttpStatus.CONFLICT, "Cannot remove own admin role",

@@ -27,3 +27,14 @@ upload daily
 if [ "$(date -u +%u)" = "7" ]; then
     upload weekly
 fi
+
+# Identity step 8: the ids of everyone deleted (finished erasures + tombstones still waiting), as CSV, also locked.
+# After restoring an older backup, deploy/oke/reapply-erasures.ps1 deletes these people again. Ids and dates only.
+erasures="backup:${BACKUP_BUCKET}/erasures/${stamp}.csv.age"
+psql --no-password --quiet -v ON_ERROR_STOP=1 -c "COPY (
+        SELECT user_id, deleted_at FROM identity.erasure_log
+        UNION SELECT id, deleted_at FROM identity.users WHERE status = 'DELETED'
+    ) TO STDOUT WITH CSV" \
+    | age --encrypt --recipient "${AGE_RECIPIENT}" \
+    | rclone rcat --s3-no-check-bucket --s3-no-head --streaming-upload-cutoff 256M "${erasures}"
+echo "Erasure list uploaded: erasures/${stamp}.csv.age"

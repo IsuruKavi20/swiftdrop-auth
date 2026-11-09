@@ -73,6 +73,10 @@ versions: [Semantic Versioning](https://semver.org/).
   (Oracle Object Storage), read-only role `backup_reader`, write-only storage key, own NetworkPolicy; backup image
   `deploy/backup` built, scanned and published (x86 + ARM) by CI; `deploy/backup/test-backup.sh` (end-to-end restore
   test) and `deploy/oke/restore-test.ps1` (production restore check).
+- **Erasure everywhere** (identity step 8, V21): `POST /api/v1/directory/erasure/{userId}/confirm` (service client of
+  the receiver, permission `erasure:confirm`); nightly hard delete of tombstones once every receiver confirmed or after
+  30 days (multi-pod safe), `erasure_log` (ids + dates, 60 days); the backup job also stores the encrypted list of
+  deleted ids; `deploy/oke/reapply-erasures.ps1` erases them again after a restore.
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.

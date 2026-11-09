@@ -42,8 +42,13 @@ sleep 2
 # Test data + the read-only role the job uses
 docker exec -i "pg-$net" psql -q -U postgres -d identity <<'SQL'
 CREATE SCHEMA identity;
-CREATE TABLE identity.users (id int PRIMARY KEY, email text);
-INSERT INTO identity.users SELECT g, 'user' || g || '@example.com' FROM generate_series(1, 25) g;
+CREATE TABLE identity.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text,
+    status text NOT NULL DEFAULT 'ACTIVE', deleted_at timestamptz);
+INSERT INTO identity.users (email) SELECT 'user' || g || '@example.com' FROM generate_series(1, 25) g;
+INSERT INTO identity.users (email, status, deleted_at) VALUES ('deleted-x@deleted.invalid', 'DELETED', now());
+CREATE TABLE identity.erasure_log (user_id uuid PRIMARY KEY, deleted_at timestamptz, erased_at timestamptz,
+    complete boolean);
+INSERT INTO identity.erasure_log VALUES (gen_random_uuid(), now(), now(), true);
 CREATE ROLE backup_reader LOGIN PASSWORD 'readerpw';
 GRANT CONNECT ON DATABASE identity TO backup_reader;
 GRANT pg_read_all_data TO backup_reader;
@@ -80,4 +85,10 @@ docker run --rm -i -e AGE_KEY="$(cat "$work/key.txt")" --entrypoint sh "$image" 
         -c 'printf "%s\n" "$AGE_KEY" > /tmp/key && age --decrypt -i /tmp/key' < "$work/backup.age" \
     | docker exec -i "pg-$net" pg_restore -U postgres -d restored
 count=$(docker exec "pg-$net" psql -tA -U postgres -d restored -c "SELECT count(*) FROM identity.users")
-if [ "$count" = "25" ]; then echo "PASS: backup restored, 25 of 25 users back"; else echo "FAIL: restored $count users"; exit 1; fi
+if [ "$count" = "26" ]; then echo "PASS: backup restored, 26 of 26 rows back"; else echo "FAIL: restored $count rows"; exit 1; fi
+
+# The erasure list (identity step 8): 1 tombstone + 1 finished erasure, ids and dates only
+rc cat "s:swiftdrop-auth-backups/erasures/$(rc lsf s:swiftdrop-auth-backups/erasures/)" > "$work/erasures.age"
+lines=$(docker run --rm -i -e AGE_KEY="$(cat "$work/key.txt")" --entrypoint sh "$image"     -c 'printf "%s
+" "$AGE_KEY" > /tmp/key && age --decrypt -i /tmp/key' < "$work/erasures.age" | wc -l)
+if [ "$lines" = "2" ]; then echo "PASS: erasure list has the 2 deleted people"; else echo "FAIL: erasure list has $lines lines"; exit 1; fi

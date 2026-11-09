@@ -397,6 +397,26 @@
         }
       }
     },
+    "/api/v1/directory/erasure/{userId}/confirm" : {
+      "post" : {
+        "tags" : [ "erasure-controller" ],
+        "operationId" : "confirm",
+        "parameters" : [ {
+          "name" : "userId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
     "/api/v1/auth/signup" : {
       "post" : {
         "tags" : [ "signup-controller" ],
@@ -603,7 +623,7 @@
     "/api/v1/auth/email-change/confirm" : {
       "post" : {
         "tags" : [ "email-change-link-controller" ],
-        "operationId" : "confirm",
+        "operationId" : "confirm_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1704,41 +1724,10 @@
           "float" : {
             "type" : "boolean"
           },
-          "container" : {
-            "type" : "boolean"
-          },
           "number" : {
             "type" : "boolean"
           },
-          "boolean" : {
-            "type" : "boolean"
-          },
-          "textual" : {
-            "type" : "boolean",
-            "deprecated" : true
-          },
-          "string" : {
-            "type" : "boolean"
-          },
-          "double" : {
-            "type" : "boolean"
-          },
-          "long" : {
-            "type" : "boolean"
-          },
-          "pojo" : {
-            "type" : "boolean"
-          },
-          "binary" : {
-            "type" : "boolean"
-          },
-          "int" : {
-            "type" : "boolean"
-          },
-          "short" : {
-            "type" : "boolean"
-          },
-          "bigInteger" : {
+          "container" : {
             "type" : "boolean"
           },
           "valueNode" : {
@@ -1748,7 +1737,7 @@
             "type" : "string",
             "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
           },
-          "integralNumber" : {
+          "bigInteger" : {
             "type" : "boolean"
           },
           "bigDecimal" : {
@@ -1757,7 +1746,38 @@
           "missingNode" : {
             "type" : "boolean"
           },
+          "integralNumber" : {
+            "type" : "boolean"
+          },
           "floatingPointNumber" : {
+            "type" : "boolean"
+          },
+          "int" : {
+            "type" : "boolean"
+          },
+          "string" : {
+            "type" : "boolean"
+          },
+          "binary" : {
+            "type" : "boolean"
+          },
+          "short" : {
+            "type" : "boolean"
+          },
+          "boolean" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "double" : {
+            "type" : "boolean"
+          },
+          "textual" : {
+            "type" : "boolean",
+            "deprecated" : true
+          },
+          "long" : {
             "type" : "boolean"
           },
           "embeddedValue" : {

@@ -37,7 +37,11 @@ swiftdrop:
       # The events receiver "swiftdrop-backend" polls with its own client (identity step 6d)
       - client-id: svc_swiftdrop-backend
         secret-sha256: 8bcdd9d25b5f9401bf586a43afd9b743f999315e97a367b95399d2486efe0502
-        permissions: [events:read]
+        permissions: [events:read, erasure:confirm]
+      # A client with erasure:confirm but no events receiver of its own (identity step 8: must be refused)
+      - client-id: svc_other-app
+        secret-sha256: 8a8540a001690952860b08589c6144fcbe987983e1365ccdc53167db7541129c
+        permissions: [erasure:confirm]
   # Tests log in many times from 127.0.0.1; limits are tested on their own (RateLimitFilterTest, RateLimitIT)
   rate-limit:
     enabled: false
