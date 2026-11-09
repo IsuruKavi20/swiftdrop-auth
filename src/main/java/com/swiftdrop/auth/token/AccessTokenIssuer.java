@@ -25,6 +25,8 @@ public class AccessTokenIssuer {
     /** Marks tokens from the dev-only test-token endpoint, so they're recognisable everywhere. */
     public static final String TEST_TOKEN_CLAIM = "test_token";
     public static final String MERCHANT_ID_CLAIM = "merchant_id";
+    /** OIDC "sid": the login session (refresh token family) the token was issued in (identity step 10). */
+    public static final String SESSION_ID_CLAIM = "sid";
 
     private final JwtEncoder encoder;
     private final JwtProperties settings;
@@ -45,12 +47,21 @@ public class AccessTokenIssuer {
      * @param entitlements the permissions those roles grant (RFC 9068 / RFC 7643 claim name), e.g. ["delivery:read-own"]
      */
     public IssuedToken issue(UUID userId, PersonClaims person, List<String> roles, List<String> entitlements) {
-        return sign(userId.toString(), settings.clientId(), null, person, roles, entitlements, false);
+        return issue(userId, person, roles, entitlements, null);
+    }
+
+    /**
+     * @param sessionId the login session (refresh token family) this token belongs to, as the "sid" claim (OIDC
+     *                  session id): introspection reports the token inactive as soon as that session ends
+     */
+    public IssuedToken issue(UUID userId, PersonClaims person, List<String> roles, List<String> entitlements,
+                             UUID sessionId) {
+        return sign(userId.toString(), settings.clientId(), null, person, roles, entitlements, false, sessionId);
     }
 
     /** Development only (see DevTestTokenController): same token, plus "test_token": true. */
     public IssuedToken issueTestToken(UUID userId, List<String> roles, List<String> entitlements) {
-        return sign(userId.toString(), settings.clientId(), null, null, roles, entitlements, true);
+        return sign(userId.toString(), settings.clientId(), null, null, roles, entitlements, true, null);
     }
 
     /**
@@ -58,11 +69,11 @@ public class AccessTokenIssuer {
      * {@code client_id}; {@code merchant_id} tells services which merchant it acts for.
      */
     public IssuedToken issueForClient(String clientId, UUID merchantId, List<String> roles, List<String> entitlements) {
-        return sign(clientId, clientId, merchantId, null, roles, entitlements, false);
+        return sign(clientId, clientId, merchantId, null, roles, entitlements, false, null);
     }
 
     private IssuedToken sign(String subject, String clientId, UUID merchantId, PersonClaims person,
-                             List<String> roles, List<String> entitlements, boolean testToken) {
+                             List<String> roles, List<String> entitlements, boolean testToken, UUID sessionId) {
         Instant now = clock.instant();
         // Spring's encoder doesn't set at+jwt by itself (spring-security#18325), so the header is explicit
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
@@ -87,6 +98,9 @@ public class AccessTokenIssuer {
         }
         if (merchantId != null) {
             claims.claim(MERCHANT_ID_CLAIM, merchantId.toString());
+        }
+        if (sessionId != null) {
+            claims.claim(SESSION_ID_CLAIM, sessionId.toString());
         }
         if (testToken) {
             claims.claim(TEST_TOKEN_CLAIM, true);

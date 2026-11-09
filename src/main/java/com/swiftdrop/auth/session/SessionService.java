@@ -12,6 +12,7 @@ import com.swiftdrop.auth.user.UserRepository;
 import com.swiftdrop.auth.user.UserStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,9 +38,11 @@ public class SessionService {
     private final Clock clock;
 
     private final IdentityEvents identityEvents;
+    private final JdbcTemplate jdbc;
 
     SessionService(RefreshTokenRepository tokens, UserRepository users, AccessTokenIssuer accessTokens,
-                   IdTokenIssuer idTokens, SessionProperties properties, Clock clock, IdentityEvents identityEvents) {
+                   IdTokenIssuer idTokens, SessionProperties properties, Clock clock, IdentityEvents identityEvents,
+                   JdbcTemplate jdbc) {
         this.tokens = tokens;
         this.users = users;
         this.accessTokens = accessTokens;
@@ -47,6 +50,7 @@ public class SessionService {
         this.properties = properties;
         this.clock = clock;
         this.identityEvents = identityEvents;
+        this.jdbc = jdbc;
     }
 
     /**
@@ -81,6 +85,7 @@ public class SessionService {
         }
         if (current.isUsed()) {
             tokens.revokeFamily(current.getFamilyId(), RevokeReason.REUSE_DETECTED, now);
+            invalidateTokensIssuedBefore(current.getUserId(), now);   // a thief may hold a ticket: kill them all
             log.warn("Refresh token reuse detected, session revoked: user={} family={}",
                     current.getUserId(), current.getFamilyId());
             throw new InvalidRefreshTokenException();
@@ -113,11 +118,23 @@ public class SessionService {
     /** Ends every session of the user (role removed; later: password reset, MFA change). */
     @Transactional
     public void endAllSessions(UUID userId, RevokeReason reason) {
-        int revoked = tokens.revokeAllForUser(userId, reason, clock.instant());
+        Instant now = clock.instant();
+        int revoked = tokens.revokeAllForUser(userId, reason, now);
+        invalidateTokensIssuedBefore(userId, now);
         if (revoked > 0) {
             identityEvents.sessionsRevoked(userId, reason.name());
         }
         log.info("All sessions ended: user={} reason={} tokens={}", userId, reason, revoked);
+    }
+
+    /**
+     * Identity step 10: access tokens issued before this moment are reported inactive by introspection. Whole
+     * seconds, like a token's "iat", so the fresh tokens a password change hands out right after stay valid.
+     * Plain SQL on purpose: the column is not part of the User entity, so a later entity save can't overwrite it.
+     */
+    private void invalidateTokensIssuedBefore(UUID userId, Instant now) {
+        jdbc.update("UPDATE identity.users SET tokens_valid_after = ? WHERE id = ?",
+                java.sql.Timestamp.from(now.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)), userId);
     }
 
     private SessionTokens issue(User user, UUID familyId, Instant familyExpiresAt, Instant now) {
@@ -128,7 +145,8 @@ public class SessionService {
                 familyExpiresAt));
         // Identity claims come from the user row read for this login/refresh: a changed name shows up next refresh
         PersonClaims person = new PersonClaims(user.getEmail(), user.isEmailVerified(), user.getName());
-        IssuedToken access = accessTokens.issue(user.getId(), person, user.roleNames(), user.permissionNames());
+        IssuedToken access = accessTokens.issue(user.getId(), person, user.roleNames(), user.permissionNames(),
+                familyId);
         String idToken = idTokens.issue(user.getId(), new IdentityClaims(user.getEmail(), user.isEmailVerified(),
                 user.getName(), user.getGivenName(), user.getFamilyName(), user.getPictureUrl(), user.getLocale(),
                 user.getProfileUpdatedAt()));

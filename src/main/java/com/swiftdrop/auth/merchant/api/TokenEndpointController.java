@@ -3,6 +3,7 @@ package com.swiftdrop.auth.merchant.api;
 import com.swiftdrop.auth.merchant.InvalidClientException;
 import com.swiftdrop.auth.merchant.MerchantClients;
 import com.swiftdrop.auth.merchant.api.dto.TokenErrorResponse;
+import com.swiftdrop.auth.common.web.BasicCredentials;
 import com.swiftdrop.auth.token.IssuedToken;
 import com.swiftdrop.auth.directory.ServiceClients;
 import com.swiftdrop.auth.token.TokenResponse;
@@ -17,9 +18,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 /**
  * OAuth 2.0 token endpoint for merchants' software: client credentials grant only (RFC 6749 4.4), client
@@ -29,7 +27,6 @@ import java.util.Base64;
 public class TokenEndpointController {
 
     private static final String CLIENT_CREDENTIALS = "client_credentials";
-    private static final String BASIC_PREFIX = "Basic ";
 
     private final MerchantClients clients;
     private final ServiceClients serviceClients;
@@ -73,22 +70,8 @@ public class TokenEndpointController {
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new TokenErrorResponse(code));
     }
 
-    // "Basic base64(urlencode(id):urlencode(secret))"; anything unreadable is simply an invalid client
     private static String[] basicCredentials(String authorization) {
-        if (authorization == null || !authorization.regionMatches(true, 0, BASIC_PREFIX, 0, BASIC_PREFIX.length())) {
-            throw new InvalidClientException();
-        }
-        try {
-            String decoded = new String(Base64.getDecoder().decode(authorization.substring(BASIC_PREFIX.length()).trim()),
-                    StandardCharsets.UTF_8);
-            int colon = decoded.indexOf(':');
-            if (colon <= 0) {
-                throw new InvalidClientException();
-            }
-            return new String[] {URLDecoder.decode(decoded.substring(0, colon), StandardCharsets.UTF_8),
-                    URLDecoder.decode(decoded.substring(colon + 1), StandardCharsets.UTF_8)};
-        } catch (IllegalArgumentException unreadable) {
-            throw new InvalidClientException();
-        }
+        BasicCredentials credentials = BasicCredentials.from(authorization).orElseThrow(InvalidClientException::new);
+        return new String[] {credentials.clientId(), credentials.secret()};
     }
 }
