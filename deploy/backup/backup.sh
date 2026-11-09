@@ -38,3 +38,18 @@ psql --no-password --quiet -v ON_ERROR_STOP=1 -c "COPY (
     | age --encrypt --recipient "${AGE_RECIPIENT}" \
     | rclone rcat --s3-no-check-bucket --s3-no-head --streaming-upload-cutoff 256M "${erasures}"
 echo "Erasure list uploaded: erasures/${stamp}.csv.age"
+
+# Identity step 9a: the audit log's newest "seq hash", stored where this cluster can only ADD files, never change
+# them. Rewriting the audit history (even with full database access) then no longer matches these anchors.
+# Not encrypted: a hash reveals nothing. Before step 9a's migration the table does not exist yet: skipped.
+anchor=""
+if [ "$(psql --no-password --tuples-only --no-align -c "SELECT to_regclass('identity.audit_log') IS NOT NULL")" = "t" ]; then
+    anchor=$(psql --no-password --quiet --tuples-only --no-align -v ON_ERROR_STOP=1 -c "SELECT coalesce(
+            (SELECT seq || ' ' || hash FROM identity.audit_log ORDER BY seq DESC LIMIT 1),
+            (SELECT seq || ' ' || hash FROM identity.audit_checkpoint WHERE id = 1))")
+fi
+if [ -n "${anchor}" ]; then
+    printf '%s %s\n' "${stamp}" "${anchor}" \
+        | rclone rcat --s3-no-check-bucket --s3-no-head "backup:${BACKUP_BUCKET}/audit-anchor/${stamp}.txt"
+    echo "Audit anchor uploaded: audit-anchor/${stamp}.txt (${anchor%% *})"
+fi
