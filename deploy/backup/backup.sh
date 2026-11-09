@@ -10,16 +10,17 @@ set -o pipefail
 
 : "${PGHOST:?}" "${PGDATABASE:?}" "${PGUSER:?}" "${PGPASSWORD:?}" "${AGE_RECIPIENT:?}" "${BACKUP_BUCKET:?}"
 
-day=$(date -u +%Y-%m-%d)
+# Date + time (UTC): the storage key may only CREATE files, never overwrite, so a retry needs a new name
+stamp=$(date -u +%Y-%m-%dT%H%M%SZ)
 
 upload() {
-    target="backup:${BACKUP_BUCKET}/$1/${day}.dump.age"
+    target="backup:${BACKUP_BUCKET}/$1/${stamp}.dump.age"
     # --no-check-bucket / --no-head: the key may only CREATE objects, never list or read them.
     # One single PUT (cutoff far above our size): a multipart upload would need more rights.
     pg_dump --format=custom --no-password \
         | age --encrypt --recipient "${AGE_RECIPIENT}" \
         | rclone rcat --s3-no-check-bucket --s3-no-head --streaming-upload-cutoff 256M "${target}"
-    echo "Backup uploaded: $1/${day}.dump.age"
+    echo "Backup uploaded: $1/${stamp}.dump.age"
 }
 
 upload daily
