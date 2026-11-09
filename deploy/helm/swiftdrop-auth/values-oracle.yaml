@@ -55,11 +55,12 @@ mailpit:
 # Nightly encrypted backup (plan/STEP-BACKUPS.md, lesson 28). Switched on after the Console setup (bucket, write-only
 # user, its key in the Secret swiftdrop-auth-backup, db-backup-password in swiftdrop-auth-secrets, age public key).
 backup:
-  enabled: false
+  enabled: true
   image:
     repository: hyd.ocir.io/ax8lt6cfwnh8/swiftdrop/auth-backup
     tag: ""
   bucket: swiftdrop-auth-backups
   region: ap-hyderabad-1
-  endpoint: ""        # https://<namespace>.compat.objectstorage.ap-hyderabad-1.oraclecloud.com
-  ageRecipient: ""    # your age PUBLIC key
+  endpoint: https://ax8lt6cfwnh8.compat.objectstorage.ap-hyderabad-1.oraclecloud.com
+  # Isuru's age PUBLIC key (can only lock; the private key is never in the cluster)
+  ageRecipient: age15egrclv8a2p6k4yhtzc8yqz69e82kym5nch09wd9ansmk5n0d5cq5pmyk4
