@@ -1,0 +1,109 @@
+{{- if .Values.backup.enabled }}
+{{- $name := include "auth.name" . }}
+{{- $b := .Values.backup }}
+# Nightly encrypted backup (plan/STEP-BACKUPS.md): pg_dump -> age (public key) -> Object Storage, streamed.
+# Read-only database role, write-only storage key: this job can't change the database, nor read or delete backups.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}-backup
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $b.schedule | quote }}
+  timeZone: {{ $b.timeZone | quote }}
+  concurrencyPolicy: Forbid          # never two backups at once
+  startingDeadlineSeconds: 3600      # missed (e.g. during an upgrade)? still run within the hour
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3          # failed runs stay visible: kubectl get jobs -n {{ .Release.Namespace }}
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            {{- include "auth.labels" . | nindent 12 }}
+            {{- include "auth.selector" (list . "backup") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: backup
+              image: "{{ $b.image.repository }}:{{ required "backup.image.tag is required" $b.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              env:
+                - { name: PGHOST, value: {{ include "auth.host" (list . "postgres") | quote }} }
+                - { name: PGPORT, value: "5432" }
+                - { name: PGDATABASE, value: {{ .Values.postgres.database | quote }} }
+                - { name: PGUSER, value: backup_reader }
+                - name: PGPASSWORD
+                  valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-backup-password } }
+                # TLS to Postgres, checking the certificate and its name against our CA (like the app)
+                - { name: PGSSLMODE, value: verify-full }
+                - { name: PGSSLROOTCERT, value: /etc/swiftdrop/ca/ca.crt }
+                - { name: AGE_RECIPIENT, value: {{ required "backup.ageRecipient (age public key) is required" $b.ageRecipient | quote }} }
+                - { name: BACKUP_BUCKET, value: {{ required "backup.bucket is required" $b.bucket | quote }} }
+                - { name: RCLONE_CONFIG, value: /tmp/rclone.conf }
+                - { name: RCLONE_CONFIG_BACKUP_TYPE, value: s3 }
+                - { name: RCLONE_CONFIG_BACKUP_PROVIDER, value: Other }
+                - { name: RCLONE_CONFIG_BACKUP_ENDPOINT, value: {{ required "backup.endpoint is required" $b.endpoint | quote }} }
+                - { name: RCLONE_CONFIG_BACKUP_REGION, value: {{ $b.region | quote }} }
+                - { name: RCLONE_CONFIG_BACKUP_FORCE_PATH_STYLE, value: "true" }
+                - name: RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: {{ $b.secretName }}, key: access-key-id } }
+                - name: RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: {{ $b.secretName }}, key: secret-access-key } }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: ca, mountPath: /etc/swiftdrop/ca, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: ca
+              secret:
+                secretName: {{ $name }}-ca
+                items: [{ key: ca.crt, path: ca.crt }]
+            - { name: tmp, emptyDir: { sizeLimit: 16Mi } }
+          {{- with .Values.image.pullSecrets }}
+          imagePullSecrets: {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+# The backup pod may reach only: DNS, our Postgres, and the internet on 443 (Object Storage). Nothing may reach it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-backup
+  labels: {{- include "auth.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "auth.selector" (list . "backup") | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels: {{- include "auth.selector" (list . "postgres") | nindent 14 }}
+      ports:
+        - { port: 5432, protocol: TCP }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "100.64.0.0/10"]
+      ports:
+        - { port: 443, protocol: TCP }
+{{- end }}

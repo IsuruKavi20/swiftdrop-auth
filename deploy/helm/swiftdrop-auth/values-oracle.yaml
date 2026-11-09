@@ -1,7 +1,7 @@
 # Oracle OKE (lesson 17): helm upgrade --install auth deploy/helm/swiftdrop-auth -n swiftdrop -f deploy/helm/swiftdrop-auth/values-oracle.yaml
 image:
   repository: hyd.ocir.io/ax8lt6cfwnh8/swiftdrop/auth
-  tag: 1.1.0-b88a591
+  wwwwwwwtag: 1.1.0-b88a591
 
 
   # The registry is private: the cluster logs in with this Secret (created with kubectl, never in git)
@@ -51,3 +51,15 @@ mail:
   from: no-reply@getswiftdrop.me
 mailpit:
   enabled: false
+
+# Nightly encrypted backup (plan/STEP-BACKUPS.md, lesson 28). Switched on after the Console setup (bucket, write-only
+# user, its key in the Secret swiftdrop-auth-backup, db-backup-password in swiftdrop-auth-secrets, age public key).
+backup:
+  enabled: false
+  image:
+    repository: hyd.ocir.io/ax8lt6cfwnh8/swiftdrop/auth-backup
+    tag: ""
+  bucket: swiftdrop-auth-backups
+  region: ap-hyderabad-1
+  endpoint: ""        # https://<namespace>.compat.objectstorage.ap-hyderabad-1.oraclecloud.com
+  ageRecipient: ""    # your age PUBLIC key
