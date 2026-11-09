@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.account;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import com.swiftdrop.auth.signals.EventsProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,11 +39,14 @@ public class ErasureCompletion {
     private final EventsProperties events;
     private final Clock clock;
 
-    ErasureCompletion(JdbcTemplate jdbc, TransactionTemplate transactions, EventsProperties events, Clock clock) {
+    private final AuditLog audit;
+
+    ErasureCompletion(JdbcTemplate jdbc, TransactionTemplate transactions, EventsProperties events, Clock clock, AuditLog audit) {
         this.jdbc = jdbc;
         this.transactions = transactions;
         this.events = events;
         this.clock = clock;
+        this.audit = audit;
     }
 
     @Scheduled(cron = "${swiftdrop.erasure.cron:0 0 4 * * *}")
@@ -79,6 +85,7 @@ public class ErasureCompletion {
         jdbc.update("INSERT INTO identity.erasure_log (user_id, deleted_at, erased_at, complete) VALUES (?, ?, ?, ?)"
                 + " ON CONFLICT (user_id) DO NOTHING", id, tombstone.get("deleted_at"), Timestamp.from(now), complete);
         jdbc.update("DELETE FROM identity.users WHERE id = ?", id);
+        audit.record(AuditEntry.onUser(Actor.system(), "erasure.completed", id, Map.of("complete", complete)));
         if (complete) {
             log.info("Account erased everywhere user={}", id);
         } else {

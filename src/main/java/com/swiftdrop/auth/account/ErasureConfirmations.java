@@ -1,5 +1,8 @@
 package com.swiftdrop.auth.account;
 
+import com.swiftdrop.auth.audit.Actor;
+import com.swiftdrop.auth.audit.AuditEntry;
+import com.swiftdrop.auth.audit.AuditLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -8,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -22,9 +26,12 @@ public class ErasureConfirmations {
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
-    ErasureConfirmations(JdbcTemplate jdbc, Clock clock) {
+    private final AuditLog audit;
+
+    ErasureConfirmations(JdbcTemplate jdbc, Clock clock, AuditLog audit) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.audit = audit;
     }
 
     /** @throws ErasureNotFoundException the id is not a deleted account (unknown, or a living person) */
@@ -41,6 +48,10 @@ public class ErasureConfirmations {
                 receiverId, Timestamp.from(clock.instant()), userId);
         if (recorded == 0 && !alreadyConfirmed(receiverId, userId)) {
             throw new ErasureNotFoundException();
+        }
+        if (recorded == 1) {
+            audit.record(AuditEntry.onUser(Actor.service("svc_" + receiverId), "erasure.confirmed", userId,
+                    Map.of("receiver", receiverId)));
         }
         log.info("Erasure confirmed user={} receiver={}", userId, receiverId);
     }

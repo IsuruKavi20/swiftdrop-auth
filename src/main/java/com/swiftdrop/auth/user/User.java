@@ -125,6 +125,20 @@ public class User {
         roles.add(role);
     }
 
+    /** Blocked by an administrator (identity step 9b): no login, no refresh; a DELETED tombstone stays deleted. */
+    public void disable() {
+        if (status != UserStatus.DELETED) {
+            this.status = UserStatus.DISABLED;
+        }
+    }
+
+    /** Unblocked by an administrator. */
+    public void enable() {
+        if (status == UserStatus.DISABLED) {
+            this.status = UserStatus.ACTIVE;
+        }
+    }
+
     public void removeRole(RoleName name) {
         roles.removeIf(role -> role.getName() == name);
     }

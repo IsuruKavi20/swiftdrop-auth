@@ -60,6 +60,18 @@ public class IdentityEvents {
                 new LinkedHashMap<>(Map.of("new-value", user.getEmail())));
     }
 
+    /** RISC account-disabled: an administrator blocked the person. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void disabled(UUID userId) {
+        record(userId, IdentityEventType.ACCOUNT_DISABLED, new LinkedHashMap<>());
+    }
+
+    /** RISC account-enabled: an administrator unblocked the person. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void enabled(UUID userId) {
+        record(userId, IdentityEventType.ACCOUNT_ENABLED, new LinkedHashMap<>());
+    }
+
     /** CAEP credential-change (OpenID CAEP 1.0: credential_type, change_type). */
     @Transactional(propagation = Propagation.MANDATORY)
     public void passwordChanged(UUID userId) {

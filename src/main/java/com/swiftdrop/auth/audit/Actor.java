@@ -18,4 +18,14 @@ public record Actor(Type type, String id) {
     public static Actor system() {
         return new Actor(Type.SYSTEM, null);
     }
+
+    /** An operator with cluster access, using deploy/oke/break-glass.ps1 (identity step 9e). */
+    public static Actor breakGlass() {
+        return new Actor(Type.BREAK_GLASS, "break-glass");
+    }
+
+    /** True when this actor is that person (nobody blocks, deletes or gives roles to themselves). */
+    public boolean is(UUID userId) {
+        return type == Type.USER && userId.toString().equals(id);
+    }
 }

@@ -10,6 +10,16 @@ versions: [Semantic Versioning](https://semver.org/).
   a trigger refuses changes for every role and removal of rows younger than a year), SHA-256 hash chain built in
   commit order under the shared write-order lock, chain verify, yearly retention with a checkpoint, and a nightly
   external anchor (`audit-anchor/` in the backup bucket). Details hold ids only (values with "@" are refused).
+- **Audited actions** (step 9a): role grant/revoke, role applications withdrawn/decided, merchant decisions and
+  status changes, account deleted, erasure confirmed/completed, email change requested/confirmed/undone, password
+  changed, directory email reads, admin block/unblock/end sessions, audit exports; each in the action's transaction.
+- **Admin API** (step 9b, migration V23 `user:manage-status`, `user:delete` for ADMIN): `GET /admin/users/{id}`,
+  `POST /admin/users/{id}/block|unblock|sessions/end`, `DELETE /admin/users/{id}` (step 8 erasure), all with a
+  required reason; never yourself, never the last active admin. `GET /admin/access-review`.
+- **Audit API** (step 9c): `GET /admin/audit` (filters, newest first, `before` paging), `/admin/audit/export` (CSV,
+  formula-safe, itself audited), `/admin/audit/verify`. Screen spec: `docs/integration/admin-frontend.md`.
+- **Break-glass tool** (step 9e): `deploy/oke/break-glass.ps1` menu; each action runs the image once as a Job with the
+  `break-glass` profile, same rules, audited as `BREAK_GLASS`. NetworkPolicy lets that Job reach Postgres/Redis.
 - **Identity profile** (identity plan step 1): `name`, `given_name`, `family_name`, `picture_url`, `locale` on users
   (OpenID Connect claim names), with `profile_source` (USER/GOOGLE) and `profile_updated_at` (migration V11).
 - Google login imports the profile from the signed ID token; a user-typed name is never overwritten, Google only

@@ -82,6 +82,8 @@ public enum ErrorCode {
             "This action is not possible in the merchant's current state."),
     LAST_ADMIN(HttpStatus.CONFLICT, "Last administrator",
             "The last administrator cannot be removed. Make someone else an administrator first."),
+    CANNOT_ACT_ON_SELF(HttpStatus.FORBIDDEN, "Own account",
+            "Administrators cannot block, unblock or delete their own account."),
     ACCOUNT_NOT_ELIGIBLE(HttpStatus.CONFLICT, "Account not eligible",
             "Roles can only be granted to active accounts with a verified email address."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed",
