@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.user;
 
+import com.swiftdrop.auth.common.concurrency.WriteOrder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,9 +20,6 @@ import java.util.UUID;
  */
 @Component
 public class IdentityEvents {
-
-    /** Any fixed number: the transaction-scoped lock that keeps diary lines committing in order. */
-    private static final long WRITE_ORDER_LOCK = 6_017_001L;
 
     private final JdbcTemplate jdbc;
     private final JsonMapper json;
@@ -100,7 +98,7 @@ public class IdentityEvents {
         // One writer at a time until commit, so lines COMMIT in the order of their numbers (seq). Without this, line
         // 11 could commit before line 10 and the delivery bookmark would move past 10 for ever (a lost event).
         // Taken after the user row lock: always the same lock order, so no deadlock between writers.
-        jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)::text", String.class, WRITE_ORDER_LOCK);
+        WriteOrder.lock(jdbc);
         jdbc.update("INSERT INTO identity.identity_events (user_id, user_version, event_type, payload, occurred_at)"
                         + " VALUES (?, ?, ?, ?::jsonb, ?)", userId, version, type.uri(), json.writeValueAsString(data),
                 Timestamp.from(clock.instant()));

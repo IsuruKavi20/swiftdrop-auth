@@ -6,6 +6,10 @@ versions: [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Audit log core** (identity step 9a, migration V22): append-only `audit_log` (the app role cannot UPDATE/TRUNCATE,
+  a trigger refuses changes for every role and removal of rows younger than a year), SHA-256 hash chain built in
+  commit order under the shared write-order lock, chain verify, yearly retention with a checkpoint, and a nightly
+  external anchor (`audit-anchor/` in the backup bucket). Details hold ids only (values with "@" are refused).
 - **Identity profile** (identity plan step 1): `name`, `given_name`, `family_name`, `picture_url`, `locale` on users
   (OpenID Connect claim names), with `profile_source` (USER/GOOGLE) and `profile_updated_at` (migration V11).
 - Google login imports the profile from the signed ID token; a user-typed name is never overwritten, Google only
