@@ -17,12 +17,12 @@ class EmailChangeListener {
 
     @ApplicationModuleListener
     void on(EmailChangeRequested event) {
-        emailChanges.sendRequestEmails(event.requestId());
+        emailChanges.sendRequestEmails(event.requestId(), event.frontendId());
     }
 
     @ApplicationModuleListener
     void on(EmailChangeConfirmed event) {
-        emailChanges.sendConfirmedEmails(event.requestId());
+        emailChanges.sendConfirmedEmails(event.requestId(), event.frontendId());
     }
 
     @ApplicationModuleListener

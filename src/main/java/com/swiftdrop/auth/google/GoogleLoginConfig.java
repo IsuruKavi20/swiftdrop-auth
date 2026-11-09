@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.google;
 
+import com.swiftdrop.auth.common.web.FrontendRegistry;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,13 +42,15 @@ class GoogleLoginConfig {
     @Bean
     @Order(1)
     SecurityFilterChain googleLoginChain(HttpSecurity http, ClientRegistrationRepository registrations,
-                                         GoogleLoginSuccessHandler success, GoogleLoginFailureHandler failure)
+                                         GoogleLoginSuccessHandler success, GoogleLoginFailureHandler failure,
+                                         FrontendRegistry frontends)
             throws Exception {
         // PKCE is automatic only for public clients; we have a secret, so switch it on explicitly (RFC 9700)
         DefaultOAuth2AuthorizationRequestResolver google =
                 new DefaultOAuth2AuthorizationRequestResolver(registrations, AUTHORIZATION_PATH);
         google.setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce());
-        BrowserBoundAuthorizationRequestResolver requests = new BrowserBoundAuthorizationRequestResolver(google);
+        BrowserBoundAuthorizationRequestResolver requests = new BrowserBoundAuthorizationRequestResolver(google,
+                frontends);
 
         http
                 .securityMatcher(AUTHORIZATION_PATH + "/**", "/login/oauth2/**")

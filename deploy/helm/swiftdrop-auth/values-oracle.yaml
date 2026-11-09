@@ -9,8 +9,11 @@ image:
 # Our domain (Namecheap, GitHub Student Pack): DNS A record auth -> 144.24.131.248 (the network load balancer).
 # This one line sets the issuer in every token, the Google redirect URI, and the Let's Encrypt certificate name.
 publicHost: auth.getswiftdrop.me
-frontendBaseUrl: http://localhost:5173
-corsAllowedOrigins: http://localhost:5173
+# The SwiftDrop app. `local` (teammates' laptops) stays only until the separate dev auth exists (STEP-FRONTENDS
+# decision 3), then it is removed here. Primary = `local` until the app is online, then `web` (decision 2).
+frontends:
+  - { id: local, baseUrl: http://localhost:5173, primary: true }
+  - { id: web, baseUrl: https://app.getswiftdrop.me }
 # OKE here uses VCN-native pod networking: Traefik's pods get addresses from the node subnet 10.0.10.0/24,
 # so only those may set X-Forwarded-For (the network load balancer keeps the real client IP up to Traefik)
 trustedProxies: '10\.0\.10\.\d{1,3}'

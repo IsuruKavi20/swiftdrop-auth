@@ -45,3 +45,6 @@ replay_pid*.log
 
 # Python virtual environment (created by the VS Code Python extension); never committed
 .venv/
+
+# Database backups (personal data): never in git
+*.dump

@@ -32,8 +32,13 @@ data:
   SWIFTDROP_JWT_ISSUER: {{ $publicUrl | quote }}
   SWIFTDROP_PUBLIC_BASE_URL: {{ $publicUrl | quote }}
   SWIFTDROP_JWT_PRIVATE_KEY_LOCATION: /etc/swiftdrop/jwt/signing-key.pem
-  SWIFTDROP_FRONTEND_BASE_URL: {{ required "frontendBaseUrl is required" .Values.frontendBaseUrl | quote }}
-  SWIFTDROP_CORS_ALLOWED_ORIGINS: {{ .Values.corsAllowedOrigins | quote }}
+  # Registered frontends: the only places users are sent to, and the only CORS origins (plan/STEP-FRONTENDS.md)
+  {{- if not .Values.frontends }}{{ fail "frontends is required (at least one, exactly one primary)" }}{{ end }}
+  {{- range $i, $frontend := .Values.frontends }}
+  SWIFTDROP_FRONTENDS_{{ $i }}_ID: {{ $frontend.id | quote }}
+  SWIFTDROP_FRONTENDS_{{ $i }}_BASEURL: {{ $frontend.baseUrl | quote }}
+  SWIFTDROP_FRONTENDS_{{ $i }}_PRIMARY: {{ $frontend.primary | default false | quote }}
+  {{- end }}
   SWIFTDROP_TRUSTED_PROXIES: {{ required "trustedProxies is required" .Values.trustedProxies | quote }}
   {{- with .Values.bootstrapAdminEmail }}
   # The first admin: granted at startup only if this account exists AND its email is verified (lesson 9)

@@ -1,6 +1,6 @@
 package com.swiftdrop.auth.google;
 
-import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.common.web.FrontendRegistry;
 import com.swiftdrop.auth.user.IdentityProfile;
 import com.swiftdrop.auth.user.PicturePolicy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,18 +25,19 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
 
     static final String CALLBACK_PATH = "/auth/callback";
     static final String CHALLENGE_ATTRIBUTE = "swiftdrop.google.browser-challenge";
+    static final String FRONTEND_ATTRIBUTE = "swiftdrop.google.frontend";
     private static final Logger log = LoggerFactory.getLogger(GoogleLoginSuccessHandler.class);
 
     private final GoogleAccountLinker linker;
     private final HandoffCodes handoffCodes;
-    private final FrontendProperties frontend;
+    private final FrontendRegistry frontends;
     private final PicturePolicy pictures;
 
-    GoogleLoginSuccessHandler(GoogleAccountLinker linker, HandoffCodes handoffCodes, FrontendProperties frontend,
+    GoogleLoginSuccessHandler(GoogleAccountLinker linker, HandoffCodes handoffCodes, FrontendRegistry frontends,
                               PicturePolicy pictures) {
         this.linker = linker;
         this.handoffCodes = handoffCodes;
-        this.frontend = frontend;
+        this.frontends = frontends;
         this.pictures = pictures;
     }
 
@@ -44,6 +45,7 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         String challenge = browserChallenge(request);
+        String frontendId = startedFrom(request);
         endLoginSession(request);
         String fragment;
         try {
@@ -60,13 +62,19 @@ public class GoogleLoginSuccessHandler implements AuthenticationSuccessHandler {
             log.warn("Google login refused: reason={}", refused.getMessage());
             fragment = GoogleLoginFailureHandler.ERROR_FRAGMENT;
         }
-        response.sendRedirect(frontend.link(CALLBACK_PATH + "#" + fragment).toString());
+        response.sendRedirect(frontends.link(frontendId, CALLBACK_PATH + "#" + fragment).toString());
     }
 
     // Standard OIDC profile claims from the signed ID token; all optional, unusable values are dropped
     private static IdentityProfile profileOf(OidcUser google) {
         return IdentityProfile.fromProvider(google.getFullName(), google.getGivenName(), google.getFamilyName(),
                 google.getPicture(), google.getLocale());
+    }
+
+    /** The registered app that started this login (null = the primary one). Read BEFORE the session ends. */
+    static String startedFrom(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        return session == null ? null : (String) session.getAttribute(FRONTEND_ATTRIBUTE);
     }
 
     private static String browserChallenge(HttpServletRequest request) {

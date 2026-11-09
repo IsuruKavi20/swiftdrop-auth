@@ -12,8 +12,11 @@ replicas: 2
 # The public address of this service (https). publicPort only when it isn't 443 (local cluster).
 publicHost: ""
 publicPort: ""
-frontendBaseUrl: ""
-corsAllowedOrigins: ""
+# Registered frontends (the SwiftDrop app): where email links and Google login send people, and the only browser
+# origins allowed (CORS). https only (http just for localhost), exactly one primary (used when we can't know which
+# app someone came from). The app picks one with ?frontend=<id> on Google login; emails follow the request's Origin.
+frontends: []
+#  - { id: web, baseUrl: https://app.getswiftdrop.me, primary: true }
 # Regex of the ingress controller's pod addresses: only they may set X-Forwarded-For (real client IP for rate limits)
 trustedProxies: ""
 

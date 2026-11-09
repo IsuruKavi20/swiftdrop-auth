@@ -75,8 +75,7 @@ The image runs as a non-root user on port **9000** and contains **no secrets**. 
 | `SWIFTDROP_JWT_ISSUER` | public https URL of this service, e.g. `https://auth.example.com` |
 | `SWIFTDROP_JWT_PRIVATE_KEY_LOCATION` | path to the mounted RSA private key (PKCS#8 PEM) |
 | `SWIFTDROP_PUBLIC_BASE_URL` | same public https URL (pins Google's redirect address) |
-| `SWIFTDROP_FRONTEND_BASE_URL` | the frontend's https URL (email links, Google return) |
-| `SWIFTDROP_CORS_ALLOWED_ORIGINS` | comma-separated frontend origins allowed to call the API from browsers |
+| `SWIFTDROP_FRONTENDS_<n>_ID`, `_BASEURL`, `_PRIMARY` | the registered frontends (`n` = 0, 1, …): the only places users are sent to (email links, Google return, chosen with `?frontend=<id>` or the request's Origin) and the only browser origins allowed (CORS); exactly one primary |
 | `SWIFTDROP_TRUSTED_PROXIES` | regex of the load balancer's addresses (the only ones allowed to set X-Forwarded-For) |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | SMTP with TLS for verification emails |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | the production Google OAuth client |

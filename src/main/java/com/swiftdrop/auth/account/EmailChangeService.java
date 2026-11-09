@@ -2,7 +2,8 @@ package com.swiftdrop.auth.account;
 
 import com.swiftdrop.auth.common.crypto.OpaqueTokens;
 import com.swiftdrop.auth.user.IdentityEvents;
-import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.common.web.FrontendRegistry;
+import com.swiftdrop.auth.common.web.RequestFrontend;
 import com.swiftdrop.auth.login.Reauthentication;
 import com.swiftdrop.auth.login.ReauthenticationFailedException;
 import com.swiftdrop.auth.session.RevokeReason;
@@ -46,15 +47,16 @@ public class EmailChangeService {
     private final ApplicationEventPublisher events;
     private final TransactionTemplate transactions;
     private final SecurityEmails emails;
-    private final FrontendProperties frontend;
+    private final FrontendRegistry frontends;
+    private final RequestFrontend requestFrontend;
     private final Clock clock;
 
     private final IdentityEvents identityEvents;
 
     EmailChangeService(Reauthentication reauthentication, SessionService sessions, UserRepository users,
                        EmailChangeRequestRepository requests, ApplicationEventPublisher events,
-                       TransactionTemplate transactions, SecurityEmails emails, FrontendProperties frontend,
-                       Clock clock, IdentityEvents identityEvents) {
+                       TransactionTemplate transactions, SecurityEmails emails, FrontendRegistry frontends,
+                       RequestFrontend requestFrontend, Clock clock, IdentityEvents identityEvents) {
         this.reauthentication = reauthentication;
         this.sessions = sessions;
         this.users = users;
@@ -62,7 +64,8 @@ public class EmailChangeService {
         this.events = events;
         this.transactions = transactions;
         this.emails = emails;
-        this.frontend = frontend;
+        this.frontends = frontends;
+        this.requestFrontend = requestFrontend;
         this.clock = clock;
         this.identityEvents = identityEvents;
     }
@@ -90,7 +93,7 @@ public class EmailChangeService {
         EmailChangeRequest request = requests.save(
                 new EmailChangeRequest(userId, user.getEmail(), newEmail.value(), now, now.plus(CONFIRM_TTL)));
         // Outbox: stored in this transaction, sent after commit, retried on failure
-        events.publishEvent(new EmailChangeRequested(request.getId()));
+        events.publishEvent(new EmailChangeRequested(request.getId(), requestFrontend.currentId()));
         log.info("Email change requested user={} request={}", userId, request.getId());
     }
 
@@ -100,7 +103,7 @@ public class EmailChangeService {
      * twice: a request whose link was already issued is skipped. If sending fails, the hash is removed again so the
      * outbox retry issues a fresh link instead of skipping.
      */
-    public void sendRequestEmails(UUID requestId) {
+    public void sendRequestEmails(UUID requestId, String frontendId) {
         IssuedLink link = transactions.execute(status -> issueConfirmLink(requestId));
         if (link == null) {
             return;
@@ -111,7 +114,7 @@ public class EmailChangeService {
                 emails.sendAddressAlreadyUsed(link.newEmail());
             } else {
                 // Token in the URL fragment: browsers never send it to servers or in Referer headers
-                emails.sendConfirmNewEmail(link.newEmail(), frontend.link(CONFIRM_PATH + "#token=" + link.token()));
+                emails.sendConfirmNewEmail(link.newEmail(), frontends.link(frontendId, CONFIRM_PATH + "#token=" + link.token()));
             }
             emails.sendChangeRequested(link.oldEmail(), masked(link.newEmail()));
         } catch (RuntimeException sendFailed) {
@@ -167,7 +170,7 @@ public class EmailChangeService {
             // Another account took the address in the same instant: the unique email constraint decides
             throw new InvalidEmailChangeLinkException();
         }
-        events.publishEvent(new EmailChangeConfirmed(request.getId()));
+        events.publishEvent(new EmailChangeConfirmed(request.getId(), requestFrontend.currentId()));
         log.info("Email changed user={} request={}", user.getId(), request.getId());
     }
 
@@ -213,14 +216,14 @@ public class EmailChangeService {
      * From the outbox listener: the undo link to the old address. The raw token never touches the outbox table.
      * Like the confirm link, its hash is committed before the mail leaves, and removed again if sending fails.
      */
-    public void sendConfirmedEmails(UUID requestId) {
+    public void sendConfirmedEmails(UUID requestId, String frontendId) {
         IssuedLink link = transactions.execute(status -> issueRevertLink(requestId));
         if (link == null) {
             return;
         }
         try {
             emails.sendEmailChanged(link.oldEmail(), masked(link.newEmail()),
-                    frontend.link(REVERT_PATH + "#token=" + link.token()));
+                    frontends.link(frontendId, REVERT_PATH + "#token=" + link.token()));
         } catch (RuntimeException sendFailed) {
             transactions.executeWithoutResult(status ->
                     requests.lockById(requestId).ifPresent(request -> request.issueRevertToken(null, null)));

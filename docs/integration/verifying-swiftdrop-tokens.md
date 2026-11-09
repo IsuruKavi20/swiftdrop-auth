@@ -23,7 +23,7 @@ does the same thing: verify our tokens with our public keys (sections 2–5). Fo
 
 **Ports and browser access (dev):** the auth service runs on **9000** (your backend keeps 8080). Browser code on
 `http://localhost:5173` (Vite) and `http://localhost:3000` may call it directly (CORS allow-list). In production the
-allowed frontend origins are set with `SWIFTDROP_CORS_ALLOWED_ORIGINS`.
+allowed origins are exactly the registered frontends (`swiftdrop.frontends`, Helm `frontends`).
 
 ## 1. What a SwiftDrop access token contains
 | Part | Value |

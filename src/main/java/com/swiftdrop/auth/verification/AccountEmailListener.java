@@ -21,16 +21,16 @@ class AccountEmailListener {
 
     @ApplicationModuleListener
     void on(AccountRegistered event) {
-        verification.issueVerification(event.userId());
+        verification.issueVerification(event.userId(), event.frontendId());
     }
 
     @ApplicationModuleListener
     void on(SignupAttemptOnExistingAccount event) {
-        verification.handleSignupAttemptOnExistingAccount(event.userId());
+        verification.handleSignupAttemptOnExistingAccount(event.userId(), event.frontendId());
     }
 
     @ApplicationModuleListener
     void on(VerificationEmailRequested event) {
-        verification.issueVerification(event.userId());
+        verification.issueVerification(event.userId(), event.frontendId());
     }
 }

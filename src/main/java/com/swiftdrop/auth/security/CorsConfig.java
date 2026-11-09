@@ -1,5 +1,6 @@
 package com.swiftdrop.auth.security;
 
+import com.swiftdrop.auth.common.web.FrontendRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -10,7 +11,8 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * CORS: which OTHER websites' browser code may call this API. A browser only lets a page on
+ * CORS: which OTHER websites' browser code may call this API: exactly the registered frontends (one list, see
+ * {@link FrontendRegistry}, so redirects and CORS can never drift apart). A browser only lets a page on
  * http://localhost:5173 read responses from us if we answer with that exact origin. Tokens travel in the
  * Authorization header, never in cookies, so credentials (cookies) are not allowed cross-site.
  */
@@ -20,9 +22,9 @@ class CorsConfig {
     private static final Duration PREFLIGHT_CACHE = Duration.ofHours(1);
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+    CorsConfigurationSource corsConfigurationSource(FrontendRegistry frontends) {
         CorsConfiguration cors = new CorsConfiguration();
-        cors.setAllowedOrigins(properties.allowedOrigins());
+        cors.setAllowedOrigins(frontends.origins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
         cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Request-Id", "If-Match"));
         // Let the frontend show the support reference and honour rate limits

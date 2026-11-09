@@ -1,6 +1,7 @@
 package com.swiftdrop.auth.verification;
 
-import com.swiftdrop.auth.common.web.FrontendProperties;
+import com.swiftdrop.auth.common.web.FrontendRegistry;
+import com.swiftdrop.auth.common.web.RequestFrontend;
 import com.swiftdrop.auth.user.EmailAddress;
 import com.swiftdrop.auth.user.User;
 import com.swiftdrop.auth.user.UserRepository;
@@ -39,6 +40,8 @@ class EmailVerificationServiceTest {
     private static final Duration COOLDOWN = Duration.ofSeconds(60);
     private static final int MAX_PER_DAY = 5;
     private static final URI FRONTEND = URI.create("https://app.swiftdrop.dev");
+    private static final FrontendRegistry FRONTENDS = new FrontendRegistry(java.util.List.of(
+            new FrontendRegistry.Frontend("web", FRONTEND, true)));
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID TOKEN_ID = UUID.randomUUID();
 
@@ -59,15 +62,15 @@ class EmailVerificationServiceTest {
     @BeforeEach
     void setUp() {
         service = new EmailVerificationService(users, tokens, sender, events,
-                new VerificationProperties(TTL, COOLDOWN, MAX_PER_DAY), new FrontendProperties(FRONTEND),
-                Clock.fixed(NOW, ZoneOffset.UTC), TransactionOperations.withoutTransaction(), org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class));
+                new VerificationProperties(TTL, COOLDOWN, MAX_PER_DAY), FRONTENDS,
+                new RequestFrontend(FRONTENDS), Clock.fixed(NOW, ZoneOffset.UTC), TransactionOperations.withoutTransaction(), org.mockito.Mockito.mock(com.swiftdrop.auth.user.IdentityEvents.class));
     }
 
     @Test
     void issuingStoresOnlyTheHashAndEmailsALinkWithTheTokenInTheFragment() {
         when(users.findById(USER_ID)).thenReturn(Optional.of(user(false)));
 
-        service.issueVerification(USER_ID);
+        service.issueVerification(USER_ID, null);
 
         ArgumentCaptor<VerificationToken> saved = ArgumentCaptor.forClass(VerificationToken.class);
         verify(tokens).save(saved.capture());
@@ -87,7 +90,7 @@ class EmailVerificationServiceTest {
         when(users.findById(USER_ID)).thenReturn(Optional.of(user(false)));
         when(tokens.existsByUserIdAndCreatedAtAfter(USER_ID, NOW.minus(COOLDOWN))).thenReturn(true);
 
-        service.issueVerification(USER_ID);
+        service.issueVerification(USER_ID, null);
 
         verify(tokens, never()).save(any());
         verifyNoInteractions(sender);
@@ -98,7 +101,7 @@ class EmailVerificationServiceTest {
         when(users.findById(USER_ID)).thenReturn(Optional.of(user(false)));
         when(tokens.countByUserIdAndCreatedAtAfter(USER_ID, NOW.minus(Duration.ofDays(1)))).thenReturn(5L);
 
-        service.issueVerification(USER_ID);
+        service.issueVerification(USER_ID, null);
 
         verify(tokens, never()).save(any());
         verifyNoInteractions(sender);
@@ -108,7 +111,7 @@ class EmailVerificationServiceTest {
     void alreadyVerifiedUserGetsNoNewToken() {
         when(users.findById(USER_ID)).thenReturn(Optional.of(user(true)));
 
-        service.issueVerification(USER_ID);
+        service.issueVerification(USER_ID, null);
 
         verify(tokens, never()).save(any());
         verifyNoInteractions(sender);
@@ -118,7 +121,7 @@ class EmailVerificationServiceTest {
     void deletedUserIsIgnoredSoARedeliveredEventCannotLoopForever() {
         when(users.findById(USER_ID)).thenReturn(Optional.empty());
 
-        service.issueVerification(USER_ID);
+        service.issueVerification(USER_ID, null);
 
         verifyNoInteractions(sender);
     }
@@ -127,7 +130,7 @@ class EmailVerificationServiceTest {
     void signupAttemptOnVerifiedAccountSendsAlreadyRegisteredMail() {
         when(users.findById(USER_ID)).thenReturn(Optional.of(user(true)));
 
-        service.handleSignupAttemptOnExistingAccount(USER_ID);
+        service.handleSignupAttemptOnExistingAccount(USER_ID, null);
 
         verify(sender).sendAlreadyRegistered(any(EmailAddress.class), any(URI.class));
     }
@@ -136,7 +139,7 @@ class EmailVerificationServiceTest {
     void signupAttemptOnUnverifiedAccountSendsAFreshVerificationInstead() {
         when(users.findById(USER_ID)).thenReturn(Optional.of(user(false)));
 
-        service.handleSignupAttemptOnExistingAccount(USER_ID);
+        service.handleSignupAttemptOnExistingAccount(USER_ID, null);
 
         verify(sender).sendVerification(any(EmailAddress.class), any(URI.class));
         verify(sender, never()).sendAlreadyRegistered(any(), any());
@@ -197,7 +200,7 @@ class EmailVerificationServiceTest {
 
         service.requestResend("Isuru@X.com");
 
-        verify(events).publishEvent(new VerificationEmailRequested(user.getId()));
+        verify(events).publishEvent(new VerificationEmailRequested(user.getId(), null));
     }
 
     private static VerificationToken stored(String token) {

@@ -76,6 +76,21 @@ class EmailChangeRequestIT {
     }
 
     @Test
+    void theConfirmLinkGoesToTheAppTheRequestCameFrom() throws Exception {
+        String newEmail = uniqueEmail();
+        UUID id = userWithPassword(uniqueEmail());
+        String token = issuer.issue(id, TestPeople.SOMEONE, List.of("CUSTOMER"), List.of()).value();
+
+        mockMvc.perform(post(CHANGE).header("Authorization", "Bearer " + token)
+                        .header("Origin", "https://app.getswiftdrop.me")
+                        .contentType(MediaType.APPLICATION_JSON).content(body(newEmail, PASSWORD)))
+                .andExpect(status().isAccepted());
+
+        MailpitClient.Mail confirm = mailpit.awaitMessageTo(newEmail, SmtpAccountEmailSubjects.CONFIRM_NEW_EMAIL);
+        assertThat(confirm.text()).contains("https://app.getswiftdrop.me/confirm-email-change#token=");
+    }
+
+    @Test
     void theDatabaseKeepsOnlyTheHashOfTheLink() throws Exception {
         String newEmail = uniqueEmail();
         UUID id = userWithPassword(uniqueEmail());
