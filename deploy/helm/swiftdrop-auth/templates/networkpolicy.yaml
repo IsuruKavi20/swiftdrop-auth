@@ -90,6 +90,11 @@ spec:
     - from:
         - podSelector:
             matchLabels: {{- include "auth.selector" (list $ "app") | nindent 14 }}
+        {{- if and (eq $component "postgres") $.Values.backup.enabled }}
+        # The nightly backup job (read-only role)
+        - podSelector:
+            matchLabels: {{- include "auth.selector" (list $ "backup") | nindent 14 }}
+        {{- end }}
       ports:
         - { port: {{ $port }}, protocol: TCP }
   egress: []   # never starts a connection

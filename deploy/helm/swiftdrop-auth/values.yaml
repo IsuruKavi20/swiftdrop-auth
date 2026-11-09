@@ -26,7 +26,7 @@ bootstrapAdminEmail: ""
 
 # Created by you with kubectl, never stored in git
 secrets:
-  # keys: db-admin-password, db-migrator-password, db-app-password, redis-password,
+  # keys: db-admin-password, db-migrator-password, db-app-password, redis-password, db-backup-password (if backup),
   #       google-client-id, google-client-secret, mail-username, mail-password
   name: swiftdrop-auth-secrets
   # key: signing-key.pem (RSA private key, PKCS#8 PEM)
@@ -96,3 +96,18 @@ redis:
 mailpit:
   enabled: false
   image: docker.io/axllent/mailpit:v1.31.5
+
+# Nightly encrypted backup to S3-compatible object storage (plan/STEP-BACKUPS.md, lesson 28).
+backup:
+  enabled: false
+  image:
+    repository: swiftdrop-backup
+    tag: ""                    # the git commit id, like the app image
+  schedule: "0 2 * * *"        # every night at 02:00 ...
+  timeZone: Asia/Colombo       # ... Sri Lanka time
+  ageRecipient: ""             # age PUBLIC key (age1...): the cluster can lock backups, never open them
+  bucket: ""
+  endpoint: ""                 # e.g. https://<namespace>.compat.objectstorage.<region>.oraclecloud.com
+  region: ""
+  # Secret with access-key-id / secret-access-key of a WRITE-ONLY storage user (created with kubectl, never in git)
+  secretName: swiftdrop-auth-backup

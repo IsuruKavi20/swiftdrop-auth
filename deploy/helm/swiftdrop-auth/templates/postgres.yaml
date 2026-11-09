@@ -11,6 +11,9 @@ data:
   # Same role script as docker-compose: identity_migrator (Flyway) and identity_app (rows only)
   01-roles.sh: |-
 {{ .Files.Get "files/01-roles.sh" | indent 4 }}
+  # Read-only role for the nightly backup (also run by hand once on an existing database: see lesson 28)
+  02-backup-role.sh: |-
+{{ .Files.Get "files/02-backup-role.sh" | indent 4 }}
   # Who may log in, and how (first matching line wins):
   #  - inside the container, only the OS user "postgres" as the DB user "postgres" (peer = same name, no password)
   #  - over the network: ONLY our two app roles, ONLY our database, ONLY with TLS + password
@@ -18,6 +21,10 @@ data:
   pg_hba.conf: |
     local   all                     postgres                             peer
     hostssl {{ .Values.postgres.database }}  identity_app,identity_migrator  0.0.0.0/0  scram-sha-256
+    {{- if .Values.backup.enabled }}
+    # The nightly backup job: read-only role (pg_read_all_data), TLS + password
+    hostssl {{ .Values.postgres.database }}  backup_reader  0.0.0.0/0  scram-sha-256
+    {{- end }}
     host    all                     all                 0.0.0.0/0        reject
     host    all                     all                 ::/0             reject
 ---
@@ -82,6 +89,10 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-migrator-password } }
             - name: DB_APP_PASSWORD
               valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-app-password } }
+            {{- if .Values.backup.enabled }}
+            - name: DB_BACKUP_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.name }}, key: db-backup-password } }
+            {{- end }}
           ports:
             - { name: postgres, containerPort: 5432 }
           # The first start creates the database (can take a minute or more): no liveness kills before that
@@ -105,6 +116,9 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /var/lib/postgresql/data }
             - { name: init, mountPath: /docker-entrypoint-initdb.d/01-roles.sh, subPath: 01-roles.sh }
+            {{- if .Values.backup.enabled }}
+            - { name: init, mountPath: /docker-entrypoint-initdb.d/02-backup-role.sh, subPath: 02-backup-role.sh }
+            {{- end }}
             - { name: init, mountPath: /etc/postgresql/pg_hba.conf, subPath: pg_hba.conf }
             - { name: tls, mountPath: /tls, readOnly: true }
             - { name: run, mountPath: /var/run/postgresql }

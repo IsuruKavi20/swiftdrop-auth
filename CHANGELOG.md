@@ -69,6 +69,10 @@ versions: [Semantic Versioning](https://semver.org/).
   `swiftdrop.cors.allowed-origins`. Google login accepts `?frontend=<id>`; email links follow the request's Origin
   (exact match); unknown → primary; CORS = the same list. Helm `frontends` replaces `frontendBaseUrl` and
   `corsAllowedOrigins` (**breaking config change**).
+- **Nightly encrypted backups** (Helm `backup`, off by default): CronJob `pg_dump` → `age` → S3-compatible storage
+  (Oracle Object Storage), read-only role `backup_reader`, write-only storage key, own NetworkPolicy; backup image
+  `deploy/backup` built, scanned and published (x86 + ARM) by CI; `deploy/backup/test-backup.sh` (end-to-end restore
+  test) and `deploy/oke/restore-test.ps1` (production restore check).
 
 ### Changed
 - Test JVM bounded (failsafe `-Xmx1g`, max 6 cached Spring test contexts) after an out-of-memory crash.
