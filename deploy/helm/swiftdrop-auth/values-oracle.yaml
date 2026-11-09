@@ -58,7 +58,7 @@ backup:
   enabled: true
   image:
     repository: hyd.ocir.io/ax8lt6cfwnh8/swiftdrop/auth-backup
-    tag: ""
+    tag: 76ccce2
   bucket: swiftdrop-auth-backups
   region: ap-hyderabad-1
   endpoint: https://ax8lt6cfwnh8.compat.objectstorage.ap-hyderabad-1.oraclecloud.com
