@@ -36,6 +36,19 @@ public class ServiceClients {
         return clientId != null && clientId.startsWith(PREFIX);
     }
 
+    /** The client, if id and secret are right (same constant-time check as the token endpoint). */
+    public Optional<DirectoryProperties.Client> authenticate(String clientId, String secret) {
+        DirectoryProperties.Client client = clients.get(clientId);
+        boolean secretOk = OpaqueTokens.matches(client == null ? DUMMY_HASH : client.secretSha256(),
+                OpaqueTokens.hash(secret == null ? "" : secret));
+        return client != null && secretOk ? Optional.of(client) : Optional.empty();
+    }
+
+    /** A service client's token stays good only while that client is still configured. */
+    public boolean isConfigured(String clientId) {
+        return clients.containsKey(clientId);
+    }
+
     /** Empty for an unknown client or a wrong secret (the caller answers invalid_client either way). */
     public Optional<IssuedToken> issueToken(String clientId, String secret) {
         DirectoryProperties.Client client = clients.get(clientId);

@@ -76,6 +76,9 @@ public class SecurityConfig {
                                 ApiPaths.AUTH + "/email-change/revert").permitAll()
                         // OAuth token endpoint for merchants' software: client id + secret (HTTP Basic) are the credential
                         .requestMatchers(HttpMethod.POST, "/oauth2/token").permitAll()
+                        // Step 10: introspect checks its caller itself (service client Basic auth); revoke needs
+                        // only the token being cancelled (RFC 7009)
+                        .requestMatchers(HttpMethod.POST, "/oauth2/introspect", "/oauth2/revoke").permitAll()
                         // Any method is let through so a GET gets an honest 405, not a misleading 401
                         .requestMatchers(ApiPaths.AUTH + "/email-verification", ApiPaths.AUTH + "/email-verification/resend")
                         .permitAll()
@@ -103,6 +106,8 @@ public class SecurityConfig {
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/google/exchange"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-change/**"),
                 PathPatternRequestMatcher.withDefaults().matcher("/oauth2/token"),
+                PathPatternRequestMatcher.withDefaults().matcher("/oauth2/introspect"),
+                PathPatternRequestMatcher.withDefaults().matcher("/oauth2/revoke"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification/**"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-verification"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.V1 + "/dev/test-tokens"),

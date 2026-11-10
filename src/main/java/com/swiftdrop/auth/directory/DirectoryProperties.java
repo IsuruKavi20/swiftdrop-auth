@@ -20,6 +20,8 @@ public record DirectoryProperties(List<Client> clients) {
     public static final String EVENTS_READ = "events:read";
     /** A receiver confirms it erased a deleted person (identity step 8). */
     public static final String ERASURE_CONFIRM = "erasure:confirm";
+    /** Identity step 10: may ask "is this token still OK right now?" (RFC 7662). */
+    public static final String TOKEN_INTROSPECT = "token:introspect";
 
     public DirectoryProperties {
         clients = clients == null ? List.of() : List.copyOf(clients);
@@ -32,7 +34,8 @@ public record DirectoryProperties(List<Client> clients) {
 
         private static final Pattern CLIENT_ID = Pattern.compile("^svc_[a-z0-9-]{3,40}$");
         private static final Pattern SHA256_HEX = Pattern.compile("^[0-9a-f]{64}$");
-        private static final Set<String> KNOWN = Set.of(READ, READ_EMAIL, EVENTS_READ, ERASURE_CONFIRM);
+        private static final Set<String> KNOWN = Set.of(READ, READ_EMAIL, EVENTS_READ, ERASURE_CONFIRM,
+                TOKEN_INTROSPECT);
 
         public Client {
             if (clientId == null || !CLIENT_ID.matcher(clientId).matches()) {
@@ -45,7 +48,8 @@ public record DirectoryProperties(List<Client> clients) {
             boolean emailWithoutRead = permissions.contains(READ_EMAIL) && !permissions.contains(READ);
             if (permissions.isEmpty() || !KNOWN.containsAll(permissions) || emailWithoutRead) {
                 throw new IllegalArgumentException(
-                        "service client permissions: directory:read [+ directory:read-email], events:read, erasure:confirm");
+                        "service client permissions: directory:read [+ directory:read-email], events:read, erasure:confirm,"
+                                + " token:introspect");
             }
         }
 

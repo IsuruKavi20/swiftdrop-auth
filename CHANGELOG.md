@@ -6,6 +6,12 @@ versions: [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Token introspection + revocation** (identity step 10, migration V24): `POST /oauth2/introspect` (RFC 7662;
+  service clients with `token:introspect` only) reports a token inactive at once when it was revoked, the person is
+  no longer ACTIVE, it was issued before their sessions last ended (`users.tokens_valid_after`), or its merchant
+  client/service client is no longer valid; active answers carry the CURRENT roles. `POST /oauth2/revoke` (RFC
+  7009) cancels refresh tokens (session ends) and access tokens (jti list, cleaned after expiry); always 200. Both
+  in discovery. SwiftDrop guide: `docs/integration/introspection.md`.
 - **Audit log core** (identity step 9a, migration V22): append-only `audit_log` (the app role cannot UPDATE/TRUNCATE,
   a trigger refuses changes for every role and removal of rows younger than a year), SHA-256 hash chain built in
   commit order under the shared write-order lock, chain verify, yearly retention with a checkpoint, and a nightly

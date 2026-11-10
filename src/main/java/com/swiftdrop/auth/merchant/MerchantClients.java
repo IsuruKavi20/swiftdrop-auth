@@ -124,6 +124,21 @@ public class MerchantClients {
         return tokens.issueForClient(clientId, merchant.getId(), List.of(RoleName.MERCHANT.name()), entitlements);
     }
 
+    /**
+     * Identity step 10 (introspection): is a machine token of this client still backed by an active client of an
+     * APPROVED merchant whose owner can still log in? The same checks as issuing it.
+     */
+    @Transactional(readOnly = true)
+    public boolean isStillValid(String clientId, UUID merchantId) {
+        return clients.findByClientId(clientId).filter(MerchantClient::isActive)
+                .filter(client -> client.getMerchantId().equals(merchantId))
+                .flatMap(client -> merchants.findById(merchantId))
+                .filter(merchant -> merchant.getStatus() == MerchantStatus.APPROVED)
+                .flatMap(merchant -> users.findById(merchant.getUserId()))
+                .filter(owner -> owner.isUsable() && owner.hasRole(RoleName.MERCHANT))
+                .isPresent();
+    }
+
     private Merchant approvedMerchantLocked(UUID ownerId) {
         User owner = users.lockById(ownerId).orElseThrow(() -> new MerchantException(ErrorCode.MERCHANT_NOT_FOUND));
         Merchant merchant = merchants.lockByUserId(ownerId)

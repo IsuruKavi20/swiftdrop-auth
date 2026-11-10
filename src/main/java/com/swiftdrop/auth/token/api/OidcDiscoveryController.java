@@ -33,6 +33,10 @@ public class OidcDiscoveryController {
         document.put("jwks_uri", issuer + JwksController.PATH);
         document.put("token_endpoint", issuer + "/oauth2/token");
         document.put("userinfo_endpoint", issuer + "/oauth2/userinfo");
+        document.put("introspection_endpoint", issuer + "/oauth2/introspect");
+        document.put("introspection_endpoint_auth_methods_supported", List.of("client_secret_basic"));
+        document.put("revocation_endpoint", issuer + "/oauth2/revoke");
+        document.put("revocation_endpoint_auth_methods_supported", List.of("none"));
         document.put("grant_types_supported", List.of("client_credentials"));
         document.put("token_endpoint_auth_methods_supported", List.of("client_secret_basic"));
         document.put("response_types_supported", List.of("token"));
