@@ -53,6 +53,11 @@ class BrowserBoundAuthorizationRequestResolver implements OAuth2AuthorizationReq
                 // Unknown or missing: back to the primary app
                 request.getSession().removeAttribute(GoogleLoginSuccessHandler.FRONTEND_ATTRIBUTE);
             }
+            // Always show Google's account chooser (OIDC prompt=select_account). Without it, a browser that is signed
+            // in to Google logs straight back into the same account, so "log out, then log in as someone else" fails.
+            return OAuth2AuthorizationRequest.from(google)
+                    .additionalParameters(parameters -> parameters.put("prompt", "select_account"))
+                    .build();
         }
         return google;
     }

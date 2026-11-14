@@ -9,10 +9,11 @@ image:
 # This one line sets the issuer in every token, the Google redirect URI, and the Let's Encrypt certificate name.
 publicHost: auth.getswiftdrop.me
 # The SwiftDrop app. `local` (teammates' laptops) stays only until the separate dev auth exists (STEP-FRONTENDS
-# decision 3), then it is removed here. Primary = `local` until the app is online, then `web` (decision 2).
+# decision 3), then it is removed here. Primary = `web` since the app went online on 14 Nov (decision 2): email links
+# (verify, reset, email change) open the live site. Laptops send frontend=local for Google login, so they still return.
 frontends:
-  - { id: local, baseUrl: http://localhost:5173, primary: true }
-  - { id: web, baseUrl: https://app.getswiftdrop.me }
+  - { id: local, baseUrl: http://localhost:5173 }
+  - { id: web, baseUrl: https://app.getswiftdrop.me, primary: true }
 # OKE here uses VCN-native pod networking: Traefik's pods get addresses from the node subnet 10.0.10.0/24,
 # so only those may set X-Forwarded-For (the network load balancer keeps the real client IP up to Traefik)
 trustedProxies: '10\.0\.10\.\d{1,3}'
@@ -25,11 +26,11 @@ directoryClients:
   - clientId: svc_swiftdrop-backend
     permissions: [directory:read, directory:read-email, events:read, erasure:confirm, token:introspect]
 
-# SwiftDrop's backend gets identity events. Poll-only until SwiftDrop is online on AWS; then add:
-#   pushUrl: https://api.getswiftdrop.me/internal/identity-events
+# SwiftDrop's backend gets identity events: pushed right away (signed SETs) + polling as the safety net.
 eventReceivers:
   - id: swiftdrop-backend
     audience: swiftdrop-backend
+    pushUrl: https://api.getswiftdrop.me/internal/identity-events
 
 ingress:
   tls:
