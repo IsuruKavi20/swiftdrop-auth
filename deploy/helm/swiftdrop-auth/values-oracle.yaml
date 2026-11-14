@@ -1,7 +1,7 @@
 # Oracle OKE (lesson 17): helm upgrade --install auth deploy/helm/swiftdrop-auth -n swiftdrop -f deploy/helm/swiftdrop-auth/values-oracle.yaml
 image:
   repository: hyd.ocir.io/ax8lt6cfwnh8/swiftdrop/auth
-  tag: 1.1.0-2a7634f
+  tag: 1.1.0-b59835a
   # The registry is private: the cluster logs in with this Secret (created with kubectl, never in git)
   pullSecrets: [{ name: ocir-pull }]
 
@@ -11,6 +11,12 @@ publicHost: auth.getswiftdrop.me
 # The SwiftDrop app. `local` (teammates' laptops) stays only until the separate dev auth exists (STEP-FRONTENDS
 # decision 3), then it is removed here. Primary = `web` since the app went online on 14 Nov (decision 2): email links
 # (verify, reset, email change) open the live site. Laptops send frontend=local for Google login, so they still return.
+# Memory: the pods were OOMKilled at 768Mi (14 Nov). Java takes 75% of the limit for the heap; the rest (classes,
+# threads, buffers) needs ~300Mi more. 1280Mi gives that room; 2 pods still fit easily on the 2 nodes (~6 GB each).
+resources:
+  requests: { cpu: 250m, memory: 768Mi }
+  limits: { memory: 1280Mi }
+
 frontends:
   - { id: local, baseUrl: http://localhost:5173 }
   - { id: web, baseUrl: https://app.getswiftdrop.me, primary: true }
