@@ -25,6 +25,8 @@ public class AccessTokenIssuer {
     /** Marks tokens from the dev-only test-token endpoint, so they're recognisable everywhere. */
     public static final String TEST_TOKEN_CLAIM = "test_token";
     public static final String MERCHANT_ID_CLAIM = "merchant_id";
+    /** Merchant machine tokens: the owner's user id, so services find the merchant they keep per owner. */
+    public static final String MERCHANT_OWNER_CLAIM = "merchant_owner";
     /** OIDC "sid": the login session (refresh token family) the token was issued in (identity step 10). */
     public static final String SESSION_ID_CLAIM = "sid";
 
@@ -56,12 +58,12 @@ public class AccessTokenIssuer {
      */
     public IssuedToken issue(UUID userId, PersonClaims person, List<String> roles, List<String> entitlements,
                              UUID sessionId) {
-        return sign(userId.toString(), settings.clientId(), null, person, roles, entitlements, false, sessionId);
+        return sign(userId.toString(), settings.clientId(), null, null, person, roles, entitlements, false, sessionId);
     }
 
     /** Development only (see DevTestTokenController): same token, plus "test_token": true. */
     public IssuedToken issueTestToken(UUID userId, List<String> roles, List<String> entitlements) {
-        return sign(userId.toString(), settings.clientId(), null, null, roles, entitlements, true, null);
+        return sign(userId.toString(), settings.clientId(), null, null, null, roles, entitlements, true, null);
     }
 
     /**
@@ -69,10 +71,20 @@ public class AccessTokenIssuer {
      * {@code client_id}; {@code merchant_id} tells services which merchant it acts for.
      */
     public IssuedToken issueForClient(String clientId, UUID merchantId, List<String> roles, List<String> entitlements) {
-        return sign(clientId, clientId, merchantId, null, roles, entitlements, false, null);
+        return sign(clientId, clientId, merchantId, null, null, roles, entitlements, false, null);
     }
 
-    private IssuedToken sign(String subject, String clientId, UUID merchantId, PersonClaims person,
+    /**
+     * A merchant's software: like {@link #issueForClient} plus {@code merchant_owner} (the owner's user id, the
+     * same value as {@code sub} in the owner's own tokens). Services keep merchants per owner, so this is how they
+     * find the merchant; it comes from the signed token, never from the request.
+     */
+    public IssuedToken issueForMerchantClient(String clientId, UUID merchantId, UUID ownerId, List<String> roles,
+                                              List<String> entitlements) {
+        return sign(clientId, clientId, merchantId, ownerId, null, roles, entitlements, false, null);
+    }
+
+    private IssuedToken sign(String subject, String clientId, UUID merchantId, UUID merchantOwner, PersonClaims person,
                              List<String> roles, List<String> entitlements, boolean testToken, UUID sessionId) {
         Instant now = clock.instant();
         // Spring's encoder doesn't set at+jwt by itself (spring-security#18325), so the header is explicit
@@ -98,6 +110,9 @@ public class AccessTokenIssuer {
         }
         if (merchantId != null) {
             claims.claim(MERCHANT_ID_CLAIM, merchantId.toString());
+        }
+        if (merchantOwner != null) {
+            claims.claim(MERCHANT_OWNER_CLAIM, merchantOwner.toString());
         }
         if (sessionId != null) {
             claims.claim(SESSION_ID_CLAIM, sessionId.toString());

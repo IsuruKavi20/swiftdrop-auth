@@ -277,10 +277,12 @@ Its token has **no user**:
 | Claim | Value |
 |---|---|
 | `sub`, `client_id` | `mc_…` (the merchant's API client) |
-| `merchant_id` | the merchant (UUID): **use this** to scope data to the merchant |
+| `merchant_id` | the merchant in the auth service (UUID) |
+| `merchant_owner` | the merchant owner's user id (UUID, the same as `sub` in the owner's own tokens) |
 | `roles` / `entitlements` | `["MERCHANT"]` / `merchant:api-access`, `parcel:create`, `parcel:read-own` |
-So in your code: `sub` is a UUID for people, `mc_…` for merchant machines. For merchant data, filter by
-`token.getClaimAsString("merchant_id")`, never by a value from the request. Merchant (people) accounts apply and get
+So in your code: `sub` is a UUID for people, `mc_…` for merchant machines. Services that keep merchants per
+owner (like the SwiftDrop backend) find the merchant with `token.getClaimAsString("merchant_owner")`, never with
+a value from the request. For bookings, also introspect the token first (a revoked key stops at once). Merchant (people) accounts apply and get
 approved through the auth service (`POST /api/v1/merchants/application`, admin `POST /api/v1/admin/merchants/{id}/decision`).
 
 ## 6f. Rate limits you may hit

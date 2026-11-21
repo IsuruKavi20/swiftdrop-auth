@@ -121,7 +121,8 @@ public class MerchantClients {
                 .orElseThrow(InvalidClientException::new);
         client.markUsed(now);
         List<String> entitlements = rolePermissions.permissionsOf(List.of(RoleName.MERCHANT));
-        return tokens.issueForClient(clientId, merchant.getId(), List.of(RoleName.MERCHANT.name()), entitlements);
+        return tokens.issueForMerchantClient(clientId, merchant.getId(), owner.getId(), List.of(RoleName.MERCHANT.name()),
+                entitlements);
     }
 
     /**

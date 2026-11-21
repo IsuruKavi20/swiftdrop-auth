@@ -139,6 +139,22 @@ class AccessTokenIssuerTest {
     }
 
     @Test
+    void onlyMerchantMachineTokensNameTheMerchantOwner() throws Exception {
+        UUID merchant = UUID.randomUUID();
+        UUID owner = UUID.randomUUID();
+        Jwt machine = verifier().decode(issuer.issueForMerchantClient("swiftdrop-web", merchant, owner,   // verifier() accepts only this client_id
+                List.of("MERCHANT"), List.of("parcel:create")).value());
+        Jwt person = verifier().decode(issuer.issue(owner, TestPeople.SOMEONE, List.of("MERCHANT"), List.of()).value());
+        Jwt service = verifier().decode(issuer.issueForClient("swiftdrop-web", null, List.of("SERVICE"), List.of()).value());
+
+        assertThat(machine.getClaimAsString("merchant_owner")).isEqualTo(owner.toString());
+        assertThat(machine.getClaimAsString("merchant_id")).isEqualTo(merchant.toString());
+        assertThat(machine.getSubject()).isEqualTo("swiftdrop-web");   // sub stays the client (RFC 9068), not the owner
+        assertThat(person.getClaims()).doesNotContainKeys("merchant_owner", "merchant_id");
+        assertThat(service.getClaims()).doesNotContainKeys("merchant_owner", "merchant_id");
+    }
+
+    @Test
     void testTokensAreVisiblyMarkedAndNormalTokensAreNot() throws Exception {
         Jwt test = verifier().decode(issuer.issueTestToken(UUID.randomUUID(), List.of("COURIER"), List.of()).value());
         Jwt normal = verifier().decode(issuer.issue(UUID.randomUUID(), TestPeople.SOMEONE, List.of("COURIER"), List.of()).value());

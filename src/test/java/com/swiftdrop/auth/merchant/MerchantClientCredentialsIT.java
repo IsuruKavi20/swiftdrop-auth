@@ -128,6 +128,7 @@ class MerchantClientCredentialsIT {
         assertThat(jwt.getSubject()).isEqualTo(client[0]);
         assertThat(jwt.getClaimAsString("client_id")).isEqualTo(client[0]);
         assertThat(jwt.getClaimAsString("merchant_id")).isNotBlank();
+        assertThat(jwt.getClaimAsString("merchant_owner")).isEqualTo(owner.toString());   // services find the merchant by it
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("MERCHANT");
         assertThat(jwt.getClaimAsStringList("entitlements")).containsExactlyInAnyOrderElementsOf(MERCHANT_PERMISSIONS);
     }

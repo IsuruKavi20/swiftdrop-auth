@@ -91,6 +91,7 @@ class IntrospectionIT {
                 .andExpect(jsonPath("$.sub").value(person.toString()))
                 .andExpect(jsonPath("$.token_type").value("Bearer"))
                 .andExpect(jsonPath("$.roles", contains("CUSTOMER")))
+                .andExpect(jsonPath("$.merchant_owner").doesNotExist())   // only merchant machine tokens have it
                 .andExpect(jsonPath("$.exp").isNumber());
     }
 
