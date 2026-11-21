@@ -13,6 +13,7 @@ import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.CHANGE_REQUEST
 import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.CONFIRM_NEW_EMAIL;
 import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.EMAIL_CHANGED;
 import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.PASSWORD_CHANGED;
+import static com.swiftdrop.auth.account.SmtpAccountEmailSubjects.PASSWORD_RESET;
 
 /** SMTP adapter (Mailpit in development, Brevo in production). Plain text, a link and nothing personal. */
 @Component
@@ -78,6 +79,19 @@ class SmtpSecurityEmails implements SecurityEmails {
 
                 If this was not you, someone has access to your account: contact SwiftDrop support right away.
                 """);
+    }
+
+    @Override
+    public void sendPasswordReset(EmailAddress to, URI resetLink) {
+        send(to, PASSWORD_RESET, """
+                Someone (hopefully you) asked to reset the password of your SwiftDrop account.
+
+                Open this link and choose a new password:
+                %s
+
+                The link works once and expires in 30 minutes. Choosing a new password logs you out everywhere.
+                If you did not ask for this, ignore this email: your password stays the same.
+                """.formatted(resetLink));
     }
 
     private void send(EmailAddress to, String subject, String body) {

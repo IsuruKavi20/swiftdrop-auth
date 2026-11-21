@@ -8,6 +8,7 @@ final class SmtpAccountEmailSubjects {
     static final String CHANGE_REQUESTED = "A change of your SwiftDrop email address was requested";
     static final String EMAIL_CHANGED = "Your SwiftDrop email address was changed";
     static final String PASSWORD_CHANGED = "Your SwiftDrop password was changed";
+    static final String PASSWORD_RESET = "Reset your SwiftDrop password";
 
     private SmtpAccountEmailSubjects() {
     }

@@ -162,6 +162,8 @@ swiftdrop:
       - {name: signup, method: POST, path: /api/v1/auth/signup, per-minute: 5}
       - {name: resend, method: POST, path: /api/v1/auth/email-verification/resend, per-minute: 5}
       - {name: verify, method: POST, path: /api/v1/auth/email-verification, per-minute: 20}
+      - {name: password-reset, method: POST, path: /api/v1/auth/password-reset, per-minute: 5}
+      - {name: password-reset-confirm, method: POST, path: /api/v1/auth/password-reset/confirm, per-minute: 10}
       - {name: refresh, method: POST, path: /api/v1/auth/refresh, per-minute: 30}
       - {name: logout, method: POST, path: /api/v1/auth/logout, per-minute: 30}
       - {name: google-start, method: GET, path: /oauth2/authorization/google, per-minute: 10}

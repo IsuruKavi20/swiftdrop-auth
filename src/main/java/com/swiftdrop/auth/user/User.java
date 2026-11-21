@@ -176,6 +176,17 @@ public class User {
         this.passwordHash = null;
     }
 
+    /**
+     * Forgot password (identity step 11a): the owner proved the mailbox with a one-time link. The failed-password
+     * lock is lifted too: it guards the OLD password, which no longer exists.
+     */
+    public void resetPassword(String newPasswordHash, Instant now) {
+        this.passwordHash = newPasswordHash;
+        this.failedLoginCount = 0;
+        this.lockedUntil = null;
+        this.updatedAt = now;
+    }
+
     public void markEmailVerified() {
         this.emailVerified = true;
     }
