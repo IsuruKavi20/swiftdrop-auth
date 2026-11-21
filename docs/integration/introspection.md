@@ -28,7 +28,8 @@ token=<the user's access token>
 ```
 Answers (always `200` for a known caller):
 - `{"active": false}` → refuse the action with 401 (ask the user to log in again). No reason is given, on purpose.
-- `{"active": true, "sub", "client_id", "token_type", "iss", "aud", "iat", "exp", "jti", "roles", "entitlements"}`
+- `{"active": true, "sub", "client_id", "token_type", "iss", "aud", "iat", "exp", "jti", "roles", "entitlements"}`;
+  merchant machine tokens also have `"merchant_id"` and `"merchant_owner"` (the owner's user id)
   → use **these** `roles`/`entitlements` (they are the person's roles NOW, not when the token was made).
 
 Errors: `401 invalid_client` (wrong id/secret), `403 unauthorized_client` (client lacks `token:introspect`),

@@ -130,7 +130,7 @@ public class TokenIntrospection {
         }
     }
 
-    // RFC 7662 2.2 names, plus our own roles and entitlements
+    // RFC 7662 2.2 names, plus our own roles, entitlements and (machine tokens) merchant_id / merchant_owner
     private static Map<String, Object> active(Jwt token, List<String> roles, List<String> entitlements) {
         Map<String, Object> answer = new LinkedHashMap<>();
         answer.put("active", true);
@@ -144,6 +144,9 @@ public class TokenIntrospection {
         answer.put("jti", token.getId());
         answer.put("roles", roles == null ? List.of() : roles);
         answer.put("entitlements", entitlements == null ? List.of() : entitlements);
+        // Merchant machine tokens: which merchant, and its owner (services keep merchants per owner)
+        answer.put(AccessTokenIssuer.MERCHANT_ID_CLAIM, token.getClaimAsString(AccessTokenIssuer.MERCHANT_ID_CLAIM));
+        answer.put(AccessTokenIssuer.MERCHANT_OWNER_CLAIM, token.getClaimAsString(AccessTokenIssuer.MERCHANT_OWNER_CLAIM));
         answer.values().removeIf(value -> value == null);
         return answer;
     }
