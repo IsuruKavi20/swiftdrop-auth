@@ -27,6 +27,10 @@ import java.util.UUID;
 @Service
 public class MerchantClients {
 
+    /** Only merchant machine tokens carry it; the booking API requires it (migration V26). */
+    public static final String API_BOOKING = "merchant:api-booking";
+
+
     static final int MAX_ACTIVE_CLIENTS = 2;
     private static final int CLIENT_ID_BYTES = 16;
     private static final String CLIENT_ID_PREFIX = "mc_";
@@ -120,7 +124,10 @@ public class MerchantClients {
                 .filter(user -> user.isUsable() && user.hasRole(RoleName.MERCHANT))
                 .orElseThrow(InvalidClientException::new);
         client.markUsed(now);
-        List<String> entitlements = rolePermissions.permissionsOf(List.of(RoleName.MERCHANT));
+        // The merchant role's permissions, plus the machine-only booking permission (no role has it: see V26)
+        List<String> entitlements = java.util.stream.Stream.concat(
+                rolePermissions.permissionsOf(List.of(RoleName.MERCHANT)).stream(), java.util.stream.Stream.of(API_BOOKING))
+                .distinct().sorted().toList();
         return tokens.issueForMerchantClient(clientId, merchant.getId(), owner.getId(), List.of(RoleName.MERCHANT.name()),
                 entitlements);
     }
