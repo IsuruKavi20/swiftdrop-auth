@@ -49,7 +49,10 @@ class MerchantClientCredentialsIT {
     private static final String CLIENTS = "/api/v1/merchants/me/clients";
     private static final String TOKEN = "/oauth2/token";
     private static final List<String> MERCHANT_PERMISSIONS =
-            List.of("merchant:api-access", "parcel:create", "parcel:read-own");
+            List.of("merchant:api-access", "merchant:api-booking", "parcel:create", "parcel:read-own");
+
+    @Autowired
+    com.swiftdrop.auth.user.RolePermissions rolePermissions;
 
     @Autowired
     private MockMvc mockMvc;
@@ -191,6 +194,13 @@ class MerchantClientCredentialsIT {
         jdbc.update("UPDATE identity.users SET locked_until = now() + interval '15 minutes' WHERE id = ?", owner);
 
         token(client[0], client[1], "client_credentials").andExpect(status().isOk());
+    }
+
+    @Test
+    void noPersonsRoleEverGivesTheApiBookingPermission() {
+        // Only merchant machine tokens carry it (MerchantClients adds it); a person's login token never can
+        assertThat(rolePermissions.permissionsOf(java.util.EnumSet.allOf(com.swiftdrop.auth.user.RoleName.class)))
+                .doesNotContain("merchant:api-booking");
     }
 
     @Test

@@ -279,7 +279,10 @@ Its token has **no user**:
 | `sub`, `client_id` | `mc_…` (the merchant's API client) |
 | `merchant_id` | the merchant in the auth service (UUID) |
 | `merchant_owner` | the merchant owner's user id (UUID, the same as `sub` in the owner's own tokens) |
-| `roles` / `entitlements` | `["MERCHANT"]` / `merchant:api-access`, `parcel:create`, `parcel:read-own` |
+| `roles` / `entitlements` | `["MERCHANT"]` / `merchant:api-access`, `merchant:api-booking`, `parcel:create`, `parcel:read-own` |
+
+`merchant:api-booking` is **only** in merchant machine tokens (no role has it): an API booking endpoint requires it,
+so a person's login can never use it.
 So in your code: `sub` is a UUID for people, `mc_…` for merchant machines. Services that keep merchants per
 owner (like the SwiftDrop backend) find the merchant with `token.getClaimAsString("merchant_owner")`, never with
 a value from the request. For bookings, also introspect the token first (a revoked key stops at once). Merchant (people) accounts apply and get
