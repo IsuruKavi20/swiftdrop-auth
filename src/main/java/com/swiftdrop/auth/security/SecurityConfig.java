@@ -76,6 +76,9 @@ public class SecurityConfig {
                                 ApiPaths.AUTH + "/email-change/revert").permitAll()
                         // OAuth token endpoint for merchants' software: client id + secret (HTTP Basic) are the credential
                         .requestMatchers(HttpMethod.POST, "/oauth2/token").permitAll()
+                        // Step 11a forgot password: same answer for every address; the emailed token is the credential
+                        .requestMatchers(HttpMethod.POST, ApiPaths.AUTH + "/password-reset",
+                                ApiPaths.AUTH + "/password-reset/confirm").permitAll()
                         // Step 10: introspect checks its caller itself (service client Basic auth); revoke needs
                         // only the token being cancelled (RFC 7009)
                         .requestMatchers(HttpMethod.POST, "/oauth2/introspect", "/oauth2/revoke").permitAll()
@@ -105,6 +108,8 @@ public class SecurityConfig {
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/logout"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/google/exchange"),
                 PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/email-change/**"),
+                PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/password-reset"),
+                PathPatternRequestMatcher.withDefaults().matcher(ApiPaths.AUTH + "/password-reset/**"),
                 PathPatternRequestMatcher.withDefaults().matcher("/oauth2/token"),
                 PathPatternRequestMatcher.withDefaults().matcher("/oauth2/introspect"),
                 PathPatternRequestMatcher.withDefaults().matcher("/oauth2/revoke"),

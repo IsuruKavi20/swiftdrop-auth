@@ -24,4 +24,7 @@ interface SecurityEmails {
 
     /** After a password change: what happened, and what to do if it wasn't the owner. */
     void sendPasswordChanged(EmailAddress to);
+
+    /** Forgot password: the one-time link (30 minutes) that lets the owner choose a new password. */
+    void sendPasswordReset(EmailAddress to, URI resetLink);
 }
